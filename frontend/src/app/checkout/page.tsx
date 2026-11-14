@@ -13,7 +13,11 @@ import {
   getSupabaseBrowserClient,
   isSupabaseConfigured,
 } from '@/lib/supabase/client';
-import { Logo } from '@/components/ui/logo';
+import {
+  CheckoutOrderConfirmation,
+  ConfirmedOrderItemSnapshot,
+  ConfirmedOrderState,
+} from '@/components/checkout/checkout-order-confirmation';
 import {
   MercadoPagoCardBrick,
   MercadoPagoCardSubmitData,
@@ -21,37 +25,14 @@ import {
 } from '@/components/checkout/mercado-pago-card-brick';
 import { OrderCreatePayload, OrderPaymentStatus } from '@/types';
 import {
-  QrCode,
   CreditCard,
   Lock,
   ArrowLeft,
   ArrowRight,
-  Copy,
-  Check,
-  Clock,
-  CheckCircle2,
   AlertCircle,
-  RefreshCw,
   Loader2,
   MapPin,
 } from 'lucide-react';
-
-interface ConfirmedOrderState {
-  id: string;
-  orderNumber: string;
-  paymentId?: string;
-  paymentStatus: OrderPaymentStatus;
-  paymentMethod: 'PIX' | 'CREDIT_CARD';
-  customerEmail: string;
-  total: number;
-  subtotal?: number;
-  discount?: number;
-  pixCode?: string;
-  pixQrCode?: string;
-  pixQrCodeBase64?: string;
-  ticketUrl?: string;
-  simulated?: boolean;
-}
 
 export default function CheckoutPage() {
   const { items, subtotal, discount, shippingFee, total, coupon, clearCart } = useCart();
@@ -278,17 +259,56 @@ export default function CheckoutPage() {
     }
   };
 
+  const buildConfirmationSnapshot = useCallback((): {
+    customerName: string;
+    shippingAddressLine: string;
+    subtotal: number;
+    discount: number;
+    pixDiscount: number;
+    shippingFee: number;
+    items: ConfirmedOrderItemSnapshot[];
+  } => {
+    const complementPart = formData.complement ? ` — ${formData.complement}` : '';
+    const shippingAddressLine = `${formData.street}, ${formData.number}${complementPart}, ${formData.neighborhood}, ${formData.city}/${formData.state} • CEP ${formData.cep}`;
+    return {
+      customerName: formData.name,
+      shippingAddressLine,
+      subtotal,
+      discount,
+      pixDiscount,
+      shippingFee,
+      items: items.map((item) => ({
+        id: item.id,
+        name: item.product.name,
+        finish: item.finish,
+        size: item.size,
+        quantity: item.quantity,
+        unitPrice: item.price,
+      })),
+    };
+  }, [formData, items, subtotal, discount, pixDiscount, shippingFee]);
+
   const handleFinalizeOrder = async () => {
     setCheckoutError(null);
     setIsSubmitting(true);
     try {
       const payload = buildOrderPayload();
+      const snapshot = buildConfirmationSnapshot();
       const result = await createOrder({
         ...payload,
         simulatedOutcome,
       });
 
-      setOrderConfirmed(result as ConfirmedOrderState);
+      setOrderConfirmed({
+        ...(result as ConfirmedOrderState),
+        customerName: snapshot.customerName,
+        shippingAddressLine: snapshot.shippingAddressLine,
+        subtotal: snapshot.subtotal,
+        discount: snapshot.discount,
+        pixDiscount: snapshot.pixDiscount,
+        shippingFee: snapshot.shippingFee,
+        items: snapshot.items,
+      });
       setStep(4);
       clearCart();
     } catch (err) {
@@ -307,6 +327,7 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
     try {
       const payload = buildOrderPayload();
+      const snapshot = buildConfirmationSnapshot();
       const res = await fetch('/api/checkout/card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -336,10 +357,15 @@ export default function CheckoutPage() {
         paymentId: data.paymentId,
         paymentStatus: data.paymentStatus || 'PAID',
         paymentMethod: 'CREDIT_CARD',
+        customerName: snapshot.customerName,
         customerEmail: formData.email,
+        shippingAddressLine: snapshot.shippingAddressLine,
         total: data.total ?? finalTotal,
-        subtotal: data.subtotal,
-        discount: data.discount,
+        subtotal: snapshot.subtotal,
+        discount: snapshot.discount,
+        pixDiscount: 0,
+        shippingFee: snapshot.shippingFee,
+        items: snapshot.items,
         simulated: Boolean(data.simulated),
       });
       setStep(4);
@@ -399,219 +425,87 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="w-full bg-brand-background min-h-screen py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Cabeçalho Limpo */}
-        <div className="flex items-center justify-between pb-5 border-b border-brand-border mb-6">
-          <Logo variant="horizontal" color="black" />
-          <div className="flex items-center gap-1.5 text-xs text-brand-textMuted">
-            <Lock className="w-3.5 h-3.5 text-brand-text" />
-            <span>Compra segura</span>
+    <div className="w-full bg-brand-background min-h-screen py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto">
+        {/* Cabeçalho Editorial do Checkout */}
+        <div className="flex flex-wrap items-end justify-between gap-3 pb-5 border-b border-brand-border mb-6">
+          <div>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-gold block">
+              {step === 4 ? 'Ateliê EVORAH • Comprovante' : 'Ateliê EVORAH • Checkout'}
+            </span>
+            <h1 className="font-serif text-2xl sm:text-3xl font-medium tracking-tight text-brand-text mt-1">
+              {step === 4 ? 'Confirmação do Pedido' : 'Finalização da Compra'}
+            </h1>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-brand-textMuted pb-0.5">
+            <Lock className="w-3.5 h-3.5 text-brand-gold" strokeWidth={1.75} />
+            <span>Ambiente criptografado • Mercado Pago</span>
           </div>
         </div>
 
-        {/* Barra de Progresso */}
-        <div className="grid grid-cols-4 gap-2 mb-8 text-xs font-medium">
-          {[
-            { num: 1, label: 'Identificação' },
-            { num: 2, label: 'Entrega' },
-            { num: 3, label: 'Pagamento' },
-            { num: 4, label: 'Confirmação' },
-          ].map((st) => (
-            <div
-              key={st.num}
-              className={`pb-2.5 border-b-2 transition-colors flex items-center gap-2 ${step >= st.num
-                ? 'border-brand-text text-brand-text font-semibold'
-                : 'border-brand-border text-brand-textMuted'
-                }`}
-            >
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${step >= st.num ? 'bg-brand-text text-white' : 'bg-brand-border text-brand-textMuted'}`}>
-                {step > st.num ? '✓' : st.num}
-              </span>
-              <span className="hidden sm:inline">{st.label}</span>
-            </div>
-          ))}
+        {/* Barra de Progresso Arquitetônica */}
+        <div className="mb-8">
+          <div className="grid grid-cols-4 gap-2 sm:gap-4 text-xs font-medium">
+            {[
+              { num: 1, label: 'Identificação' },
+              { num: 2, label: 'Entrega' },
+              { num: 3, label: 'Pagamento' },
+              { num: 4, label: 'Confirmação' },
+            ].map((st) => {
+              const isReached = step >= st.num;
+              const isCurrent = step === st.num;
+              return (
+                <div
+                  key={st.num}
+                  className={`pb-3 border-b-2 transition-colors flex items-center gap-2 ${
+                    isCurrent
+                      ? 'border-brand-gold text-brand-text font-semibold'
+                      : isReached
+                        ? 'border-brand-text text-brand-text font-semibold'
+                        : 'border-brand-border text-brand-textMuted'
+                  }`}
+                >
+                  <span
+                    className={`w-5 h-5 flex items-center justify-center text-[10px] font-mono tabular-nums shrink-0 ${
+                      isCurrent
+                        ? 'bg-[#0A0A0A] text-brand-gold border border-brand-gold/60'
+                        : isReached
+                          ? 'bg-brand-text text-white'
+                          : 'bg-brand-elevated text-brand-textMuted border border-brand-border'
+                    }`}
+                  >
+                    {step > st.num ? '✓' : `0${st.num}`}
+                  </span>
+                  <span className="hidden sm:inline truncate">{st.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="sm:hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-textMuted mt-2">
+            Etapa 0{step} de 04 •{' '}
+            <span className="text-brand-text">
+              {step === 1
+                ? 'Identificação'
+                : step === 2
+                  ? 'Entrega'
+                  : step === 3
+                    ? 'Pagamento'
+                    : 'Confirmação'}
+            </span>
+          </p>
         </div>
 
         {/* Etapa 4: Confirmação */}
         {step === 4 && orderConfirmed ? (
-          <div className="bg-white rounded border border-brand-border p-6 sm:p-8 text-center max-w-lg mx-auto space-y-5">
-            {orderConfirmed.paymentStatus === 'PAID' ? (
-              <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-            ) : orderConfirmed.paymentStatus === 'CANCELLED' ? (
-              <div className="w-12 h-12 rounded-full bg-red-50 text-red-700 flex items-center justify-center mx-auto">
-                <AlertCircle className="w-6 h-6" />
-              </div>
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center mx-auto">
-                <Clock className="w-6 h-6" />
-              </div>
-            )}
-
-            <div>
-              {orderConfirmed.paymentStatus === 'PAID' ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold uppercase tracking-wider">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Pago • Pagamento confirmado
-                </span>
-              ) : orderConfirmed.paymentStatus === 'CANCELLED' ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-red-50 text-red-800 border border-red-200 text-xs font-semibold uppercase tracking-wider">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  Pagamento cancelado
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold uppercase tracking-wider">
-                  <Clock className="w-3.5 h-3.5" />
-                  {orderConfirmed.paymentMethod === 'PIX'
-                    ? 'Aguardando pagamento PIX'
-                    : 'Em análise — aguardando confirmação'}
-                </span>
-              )}
-
-              <h2 className="text-xl font-serif font-medium text-brand-text mt-2 tabular-nums">
-                Pedido #{orderConfirmed.orderNumber}
-              </h2>
-              <p className="text-xs text-brand-textMuted mt-1">
-                Enviamos os detalhes da compra para <strong>{orderConfirmed.customerEmail}</strong>.
-              </p>
-            </div>
-
-            {orderConfirmed.paymentStatus === 'PAID' && (
-              <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded text-left flex items-start gap-3">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                <div className="text-xs text-emerald-900 space-y-1">
-                  <p className="font-semibold">
-                    {orderConfirmed.paymentMethod === 'PIX'
-                      ? 'PIX recebido e aprovado!'
-                      : 'Pagamento aprovado no cartão!'}
-                  </p>
-                  <p className="text-emerald-800/90">
-                    Total pago: R$ {Number(orderConfirmed.total).toFixed(2).replace('.', ',')} • Seu pedido entrou em preparação.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {orderConfirmed.paymentMethod === 'PIX' && orderConfirmed.paymentStatus === 'PENDING' && (
-              <div className="p-5 bg-brand-background rounded border border-brand-border text-left space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-brand-text">
-                    <QrCode className="w-4 h-4" />
-                    <span>Pagamento via PIX</span>
-                  </div>
-                  <span className="text-sm font-semibold text-brand-text tabular-nums">
-                    R$ {Number(orderConfirmed.total).toFixed(2).replace('.', ',')}
-                  </span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-4 bg-white rounded p-4 border border-brand-border">
-                  <div className="w-24 h-24 bg-white p-1 rounded flex items-center justify-center shrink-0 border border-brand-border overflow-hidden">
-                    {orderConfirmed.pixQrCodeBase64 ? (
-                      <img
-                        src={`data:image/png;base64,${orderConfirmed.pixQrCodeBase64}`}
-                        alt="QR Code PIX"
-                        className="w-full h-full object-contain"
-                      />
-                    ) : (
-                      <div className="w-full h-full border-2 border-black p-1 grid grid-cols-4 gap-0.5">
-                        <div className="bg-black" /><div className="bg-white" /><div className="bg-black" /><div className="bg-black" />
-                        <div className="bg-white" /><div className="bg-black" /><div className="bg-white" /><div className="bg-black" />
-                        <div className="bg-black" /><div className="bg-black" /><div className="bg-black" /><div className="bg-white" />
-                        <div className="bg-black" /><div className="bg-white" /><div className="bg-black" /><div className="bg-black" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 text-xs text-brand-textMuted space-y-2 w-full">
-                    <p>Escaneie o código com seu banco ou copie a chave:</p>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        readOnly
-                        value={orderConfirmed.pixCode || ''}
-                        className="flex-1 h-9 px-3 rounded-l-sm bg-brand-background border border-brand-border border-r-0 text-xs text-brand-text font-mono"
-                      />
-                      <button
-                        type="button"
-                        onClick={copyPixCode}
-                        className="h-9 px-3.5 rounded-r-sm bg-brand-text text-white font-semibold text-xs uppercase tracking-wider flex items-center gap-1.5 shrink-0 hover:bg-brand-accent transition-colors"
-                      >
-                        {copiedPix ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copiedPix ? 'Copiado' : 'Copiar'}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {orderConfirmed.ticketUrl && (
-                  <div>
-                    <a
-                      href={orderConfirmed.ticketUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-text underline underline-offset-4 hover:text-brand-accent"
-                    >
-                      Abrir ticket / QR no Mercado Pago ↗
-                    </a>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-brand-textMuted">
-                  <span className="inline-flex items-center gap-1.5">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    Atualização automática ativa após o pagamento...
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => void checkPaymentStatusOnce(orderConfirmed.orderNumber, true)}
-                    disabled={checkingPayment}
-                    className="font-semibold text-brand-text hover:underline disabled:opacity-50"
-                  >
-                    {checkingPayment ? 'Verificando...' : 'Já paguei • Verificar agora'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {orderConfirmed.paymentStatus === 'PENDING' && orderConfirmed.simulated && (
-              <div className="p-3.5 rounded border border-dashed border-brand-border bg-brand-background/70 space-y-2">
-                <p className="text-[11px] text-brand-textMuted">
-                  Modo sandbox local ativo (sem credenciais Mercado Pago): teste o retorno automático do webhook aqui.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleSimulateWebhookApproval}
-                  disabled={simulatingWebhook}
-                  className="w-full h-10 px-4 rounded-sm bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>
-                    {simulatingWebhook
-                      ? 'Confirmando via Webhook...'
-                      : orderConfirmed.paymentMethod === 'PIX'
-                        ? 'Simular pagamento PIX aprovado (Webhook)'
-                        : 'Simular pagamento aprovado (Webhook)'}
-                  </span>
-                </button>
-              </div>
-            )}
-
-            <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                href={`/rastreio?pedido=${orderConfirmed.orderNumber}`}
-                className="h-10 px-5 rounded-sm border border-brand-border bg-white text-brand-text hover:border-brand-text font-semibold text-xs tracking-wider uppercase flex items-center justify-center transition-colors"
-              >
-                Acompanhar pedido
-              </Link>
-              <Link
-                href="/produtos"
-                className="h-10 px-6 rounded-sm bg-brand-text text-white hover:bg-brand-accent font-semibold text-xs tracking-wider uppercase flex items-center justify-center transition-colors"
-              >
-                Continuar comprando
-              </Link>
-            </div>
-          </div>
+          <CheckoutOrderConfirmation
+            orderConfirmed={orderConfirmed}
+            copiedPix={copiedPix}
+            onCopyPix={copyPixCode}
+            checkingPayment={checkingPayment}
+            onCheckPayment={() => void checkPaymentStatusOnce(orderConfirmed.orderNumber, true)}
+            simulatingWebhook={simulatingWebhook}
+            onSimulateWebhook={handleSimulateWebhookApproval}
+          />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             {/* Formulário */}

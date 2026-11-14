@@ -29,9 +29,9 @@ export function Header() {
   return (
     <>
       <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-brand-border select-none">
-        <div className="max-w-[1380px] mx-auto px-4 sm:px-8 lg:px-12 h-16 sm:h-20 flex items-center justify-between gap-3 sm:gap-6">
+        <div className="max-w-[1380px] mx-auto px-4 sm:px-6 lg:px-6 xl:px-10 h-16 sm:h-20 flex items-center justify-between gap-2 lg:gap-4 xl:gap-6">
           {/* Esquerda: Menu mobile + Logo Oficial EVORAH EXPERIENCE */}
-          <div className="flex items-center gap-2.5 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
@@ -41,12 +41,16 @@ export function Header() {
               <Menu className="w-5 h-5 stroke-[1.5]" />
             </button>
 
-            <Logo variant="horizontal" color="gold" />
+            <Logo
+              variant="horizontal"
+              color="gold"
+              className="[&_svg]:h-8 lg:[&_svg]:h-8 xl:[&_svg]:h-10"
+            />
           </div>
 
           {/* Centro: Navegação Editorial Exata */}
           <nav
-            className="hidden lg:flex items-center gap-7 xl:gap-8 h-full"
+            className="hidden lg:flex items-center gap-4 xl:gap-7 h-full min-w-0"
             aria-label="Navegação principal"
           >
             {categories.map((cat) => {
@@ -56,7 +60,7 @@ export function Header() {
                   key={cat.name}
                   href={cat.href}
                   prefetch={true}
-                  className={`relative text-[11px] uppercase tracking-[0.16em] py-2 transition-colors whitespace-nowrap ${
+                  className={`relative text-[10.5px] xl:text-[11px] uppercase tracking-[0.12em] xl:tracking-[0.16em] py-2 transition-colors whitespace-nowrap ${
                     cat.highlight
                       ? 'font-semibold text-brand-text hover:text-brand-gold'
                       : isActive
@@ -74,7 +78,7 @@ export function Header() {
           </nav>
 
           {/* Direita: Busca, Favoritos e Botão Sacola [ 🛍️ 0 ] */}
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 xl:gap-4 shrink-0">
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
