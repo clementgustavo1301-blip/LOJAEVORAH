@@ -1,0 +1,26 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Dependencies and builds
+node_modules/
+frontend/.next/
+.next/
+out/
+dist/
+backend/dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Workspace tool backups, local sqlite DBs & OS temp files
+.ag-kit-backups/
+ag-kit-source/
+*.db
+*.db-journal
+11d06b73-439e-4b4d-89f9-a88edde49096.png
+*.log
+.DS_Store
+Thumbs.db

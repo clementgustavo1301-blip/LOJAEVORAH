@@ -1,0 +1,89 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique
+  description String?
+  imageUrl    String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id               String       @id @default(uuid())
+  name             String
+  slug             String       @unique
+  description      String
+  specifications   String?      // Material, espessura, fecho, resistência à água
+  careInstructions String?      // Cuidados com a peça
+  material         String       @default("Aço Cirúrgico 316L")
+  price            Float
+  promotionalPrice Float?
+  rating           Float        @default(4.9)
+  reviewsCount     Int          @default(0)
+  isNew            Boolean      @default(false)
+  isBestSeller     Boolean      @default(false)
+  isFeatured       Boolean      @default(false)
+  availableFinishes String      // JSON array: ["silver", "gold", "black", "bicolor"]
+  availableSizes   String       // JSON array: ["16", "18", "20", "22"] or ["50cm", "60cm", "70cm"]
+  images           String       // JSON array of image URLs
+  categoryId       String
+  category         Category     @relation(fields: [categoryId], references: [id])
+  orderItems       OrderItem[]
+  reviews          Review[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  shippingAddress String      // JSON string of address
+  shippingMethod  String      @default("Expresso")
+  paymentMethod   String      // PIX or CREDIT_CARD
+  paymentStatus   String      @default("PAID")
+  subtotal        Float
+  shippingCost    Float       @default(0.0)
+  discount        Float       @default(0.0)
+  total           Float
+  installments    Int         @default(1)
+  items           OrderItem[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  productName String
+  finish      String
+  size        String?
+  unitPrice   Float
+  quantity    Int
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  authorName  String
+  rating      Int      @default(5)
+  comment     String
+  verified    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}

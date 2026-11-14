@@ -1,0 +1,98 @@
+import type { NextConfig } from "next";
+import path from "path";
+import withBundleAnalyzer from "@next/bundle-analyzer";
+
+const analyzeBundles = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
+
+const nextConfig: NextConfig = {
+  outputFileTracingRoot: path.resolve(__dirname),
+  compress: true,
+  poweredByHeader: false,
+  reactStrictMode: true,
+  onDemandEntries: {
+    maxInactiveAge: 60 * 60 * 1000,
+    pagesBufferLength: 24,
+  },
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      '@supabase/ssr',
+      '@supabase/supabase-js',
+      '@tanstack/react-query',
+      'motion',
+    ],
+  },
+  images: {
+    unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
+    ],
+  },
+  async headers() {
+    const isProd = process.env.NODE_ENV === 'production';
+    const prodSpeculationHeaders = isProd
+      ? [
+          {
+            key: 'Speculation-Rules',
+            value: '"/speculation.json"',
+          },
+        ]
+      : [];
+
+    const prodImmutableAssetHeaders = isProd
+      ? [
+          {
+            source: '/:path*\\.(svg|jpg|jpeg|png|webp|avif|mp4|webm|woff2|woff)',
+            headers: [
+              {
+                key: 'Cache-Control',
+                value: 'public, max-age=31536000, immutable',
+              },
+            ],
+          },
+        ]
+      : [];
+
+    return [
+      {
+        source: '/speculation.json',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/speculationrules+json; charset=utf-8',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600',
+          },
+        ],
+      },
+      ...prodImmutableAssetHeaders,
+      {
+        source: '/((?!_next/|api/|speculation\\.json).*)',
+        headers: [
+          ...prodSpeculationHeaders,
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+        ],
+      },
+    ];
+  },
+};
+
+export default analyzeBundles(nextConfig);
