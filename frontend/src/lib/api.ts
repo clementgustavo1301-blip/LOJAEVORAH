@@ -308,10 +308,10 @@ function mapProduct(row: any): Product {
   };
 }
 
-const CACHE_TTL_MS = 3_600_000;
-const SUPABASE_TIMEOUT_MS = 300;
+const CACHE_TTL_MS = 120_000;
+const SUPABASE_TIMEOUT_MS = 4500;
 const BACKEND_TIMEOUT_MS = 200;
-const SUPABASE_COOLDOWN_MS = 600_000;
+const SUPABASE_COOLDOWN_MS = 15_000;
 const SUPABASE_DOWN_STORAGE_KEY = 'evorah_supabase_down_until';
 const BACKEND_DOWN_STORAGE_KEY = 'evorah_backend_down_until';
 

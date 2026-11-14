@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { isSupabaseConfigured } from './client';
 
 function serverTimedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const timeoutSignal = AbortSignal.timeout(1500);
+  const timeoutSignal = AbortSignal.timeout(4500);
   const signal =
     init?.signal && typeof AbortSignal.any === 'function'
       ? AbortSignal.any([init.signal, timeoutSignal])

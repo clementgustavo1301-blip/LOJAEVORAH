@@ -56,7 +56,7 @@ export async function middleware(request: NextRequest) {
   try {
     const authPromise = supabase.auth.getUser();
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Supabase auth timeout')), 450)
+      setTimeout(() => reject(new Error('Supabase auth timeout')), 3500)
     );
     const result = await Promise.race([authPromise, timeoutPromise]);
     user = result.data?.user ?? null;
