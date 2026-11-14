@@ -61,6 +61,7 @@ export default function AdminProdutosPage() {
 
   // Edição de produto existente
   const [editProductName, setEditProductName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [supplierName, setSupplierName] = useState('');
   const [supplierUrl, setSupplierUrl] = useState('');
   const [supplierCost, setSupplierCost] = useState<string>('');
@@ -155,12 +156,27 @@ export default function AdminProdutosPage() {
           if (ext.suggestedDescription) setImportDescription(ext.suggestedDescription);
           setImportCategory(ext.suggestedCategory || 'cat-correntes');
           setImportDeliveryDays(ext.estimatedDeliveryDays);
+          if (Array.isArray(ext.suggestedSizes) && ext.suggestedSizes.length > 0) {
+            setImportSizes(ext.suggestedSizes.join(', '));
+          }
+          if (Array.isArray(ext.suggestedFinishes) && ext.suggestedFinishes.length > 0) {
+            setImportFinishes(ext.suggestedFinishes);
+          }
           if (ext.suggestedCost) setImportCost(Number(ext.suggestedCost).toFixed(2));
           if (ext.suggestedPrice) setImportSalePrice(Number(ext.suggestedPrice).toFixed(2));
           if (ext.suggestedImages?.length > 0) {
             setImportImages(ext.suggestedImages);
           }
-          setExtractionFeedback('Dados carregados. Revise as informações antes de salvar.');
+
+          if (ext.priceDetected) {
+            setExtractionFeedback(
+              'Foto, descrição, tamanhos e valores carregados do anúncio. Revise antes de salvar.'
+            );
+          } else {
+            setExtractionFeedback(
+              'Foto, nome e descrição carregados. A Shopee não exibe o preço pelo link — informe o Custo real abaixo ou cole o texto do anúncio.'
+            );
+          }
         }
       }
     } catch {
@@ -180,19 +196,34 @@ export default function AdminProdutosPage() {
       .map((l) => l.trim())
       .filter((l) => l.length > 2);
 
-    if (lines.length > 0) {
+    if (lines.length > 0 && !importName.trim()) {
       const titleLine = lines.find((l) => !/^R\$\s*\d/.test(l) && l.length > 5);
       if (titleLine) {
         setImportName(titleLine.slice(0, 110));
       }
     }
 
-    const priceMatch = text.match(/R\$\s*([\d.,]+)/i);
-    if (priceMatch) {
-      const parsedCost = parseFloat(priceMatch[1].replace('.', '').replace(',', '.'));
+    if (lines.length > 1 && !importDescription.trim()) {
+      const descText = lines
+        .filter((l) => !/^R\$\s*\d/.test(l))
+        .slice(1)
+        .join('\n')
+        .trim();
+      if (descText.length >= 15) {
+        setImportDescription(descText);
+      }
+    }
+
+    const priceMatch = text.match(/(?:R\$\s*)?(\d{1,4}(?:[.,]\d{2}))/i);
+    if (priceMatch?.[1]) {
+      const normalized = priceMatch[1].includes(',')
+        ? priceMatch[1].replace(/\./g, '').replace(',', '.')
+        : priceMatch[1];
+      const parsedCost = parseFloat(normalized);
       if (!isNaN(parsedCost) && parsedCost > 0) {
         setImportCost(parsedCost.toFixed(2));
-        setImportSalePrice((parsedCost * 3.5).toFixed(2));
+        const recommendedSale = Math.max(99.9, Math.ceil((parsedCost * 3.2) / 10) * 10 - 0.1);
+        setImportSalePrice(recommendedSale.toFixed(2));
       }
     }
   };
@@ -266,6 +297,7 @@ export default function AdminProdutosPage() {
   const openEditModal = (p: Product) => {
     setSelectedProduct(p);
     setEditProductName(p.name);
+    setEditDescription(p.description || '');
     setSupplierName(p.supplierName || 'Shopee Brasil');
     setSupplierUrl(p.supplierUrl || '');
     setSupplierCost(p.supplierCost ? p.supplierCost.toFixed(2) : '25.00');
@@ -289,6 +321,7 @@ export default function AdminProdutosPage() {
 
       await updateProductSupplier(selectedProduct.id, {
         name: editProductName.trim() || undefined,
+        description: editDescription.trim() || undefined,
         supplierName: supplierName.trim(),
         supplierUrl: supplierUrl.trim(),
         supplierCost: costNum,
@@ -303,6 +336,7 @@ export default function AdminProdutosPage() {
             ? {
               ...item,
               name: editProductName.trim() || item.name,
+              description: editDescription.trim() || item.description,
               price: priceNum,
               promotionalPrice: undefined,
               supplierName: supplierName.trim(),
@@ -411,9 +445,17 @@ export default function AdminProdutosPage() {
             <div className="relative flex-1">
               <Link2 className="w-4 h-4 text-brand-textMuted absolute left-3 top-1/2 -translate-y-1/2" />
               <input
-                type="url"
+                type="text"
                 value={quickLinkUrl}
                 onChange={(e) => setQuickLinkUrl(e.target.value)}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData('text').trim();
+                  if (/https?:\/\//i.test(pasted)) {
+                    e.preventDefault();
+                    setQuickLinkUrl(pasted);
+                    void handleExtractFromUrl(pasted);
+                  }
+                }}
                 placeholder="Cole o link do produto na Shopee ou TikTok Shop para cadastrar..."
                 className="w-full h-10 pl-9 pr-3 rounded-sm bg-brand-background border border-brand-border text-xs text-brand-text placeholder:text-brand-textMuted focus:border-brand-text outline-none"
               />
@@ -506,7 +548,12 @@ export default function AdminProdutosPage() {
                     <div className="flex items-center gap-3.5 min-w-0">
                       <div className="relative w-14 h-16 rounded-sm bg-brand-background border border-brand-border overflow-hidden shrink-0">
                         {p.images?.[0] ? (
-                          <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
+                          <img
+                            src={p.images[0]}
+                            alt={p.name}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-brand-textMuted">
                             <ImageIcon className="w-4 h-4" />
@@ -591,25 +638,68 @@ export default function AdminProdutosPage() {
             </p>
 
             {extractionFeedback && (
-              <div className="mt-3 p-3 rounded-sm bg-brand-background border border-brand-border text-xs text-brand-text flex items-center justify-between gap-2">
-                <span>{extractionFeedback}</span>
+              <div className="mt-3 p-3 rounded-sm bg-brand-background border border-brand-border text-xs text-brand-text space-y-1.5">
+                <p>{extractionFeedback}</p>
+                <button
+                  type="button"
+                  onClick={() => setShowPasteHelper((prev) => !prev)}
+                  className="text-[11px] font-semibold text-brand-text underline underline-offset-4 hover:text-brand-accent"
+                >
+                  {showPasteHelper
+                    ? 'Ocultar campo de texto do anúncio'
+                    : 'Colar texto copiado do anúncio (preenche preço e descrição)'}
+                </button>
+              </div>
+            )}
+
+            {showPasteHelper && (
+              <div className="mt-3 p-3 rounded-sm bg-brand-background border border-dashed border-brand-border space-y-1.5">
+                <label className="text-[11px] font-medium text-brand-text block">
+                  Cole aqui o texto copiado da página da Shopee (incluindo o valor R$):
+                </label>
+                <textarea
+                  rows={3}
+                  value={pastedAdText}
+                  onChange={(e) => handleParseCopiedText(e.target.value)}
+                  placeholder="Ex: Colar Corrente Veneziana... R$ 34,90..."
+                  className="w-full bg-white border border-brand-border rounded-sm p-2 text-xs text-brand-text focus:border-brand-text outline-none"
+                />
               </div>
             )}
 
             <form onSubmit={handleCreateImportedProduct} className="mt-4 space-y-4">
               <div>
-                <label className="text-xs font-medium text-brand-text block mb-1">
-                  Link do Anúncio (Shopee ou TikTok Shop)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-brand-text block">
+                    Link do Anúncio (Shopee ou TikTok Shop)
+                  </label>
+                  {!extractionFeedback && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPasteHelper((prev) => !prev)}
+                      className="text-[11px] text-brand-textMuted hover:text-brand-text underline underline-offset-2"
+                    >
+                      {showPasteHelper ? 'Ocultar texto' : 'Colar texto com preço'}
+                    </button>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <input
-                    type="url"
+                    type="text"
                     value={importUrl}
                     onChange={(e) => {
                       const val = e.target.value;
                       setImportUrl(val);
                       const det = detectSupplierPlatform(val);
                       if (det !== 'OTHER') handleSelectPlatformPreset(det);
+                    }}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text').trim();
+                      if (/https?:\/\//i.test(pasted)) {
+                        e.preventDefault();
+                        setImportUrl(pasted);
+                        void handleExtractFromUrl(pasted);
+                      }
                     }}
                     placeholder="https://shopee.com.br/..."
                     className="flex-1 h-10 bg-white border border-brand-border rounded-sm px-3 text-xs text-brand-text focus:border-brand-text outline-none"
@@ -621,7 +711,7 @@ export default function AdminProdutosPage() {
                     onClick={() => handleExtractFromUrl(importUrl)}
                     className="h-10 px-4 rounded-sm bg-brand-text text-white hover:bg-brand-accent text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-50"
                   >
-                    {extractingLink ? 'Carregando...' : 'Buscar'}
+                    {extractingLink ? 'Buscando...' : 'Buscar'}
                   </button>
                 </div>
               </div>
@@ -659,6 +749,19 @@ export default function AdminProdutosPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="text-xs font-medium text-brand-text block mb-1">
+                  Descrição do Produto
+                </label>
+                <textarea
+                  rows={3}
+                  value={importDescription}
+                  onChange={(e) => setImportDescription(e.target.value)}
+                  placeholder="Descrição extraída do anúncio ou detalhes da joia..."
+                  className="w-full bg-white border border-brand-border rounded-sm p-2.5 text-xs text-brand-text leading-relaxed focus:border-brand-text outline-none"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-brand-text block mb-1">
@@ -689,10 +792,97 @@ export default function AdminProdutosPage() {
                 </div>
               </div>
 
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-brand-background px-3 py-2 border border-brand-border">
+                <span className="text-brand-textMuted">
+                  Fornecedor: <strong className="text-brand-text">{importSupplierName}</strong> ({importPlatform})
+                </span>
+                <span className="font-semibold text-emerald-700 tabular-nums">
+                  Lucro estimado: R$ {importProfit.toFixed(2).replace('.', ',')} ({importMarginPercent}%)
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-brand-text block mb-1">
+                    Tamanhos (separados por vírgula)
+                  </label>
+                  <input
+                    type="text"
+                    value={importSizes}
+                    onChange={(e) => setImportSizes(e.target.value)}
+                    placeholder="40cm, 45cm, 50cm, 60cm, 70cm"
+                    className="w-full h-9 bg-white border border-brand-border rounded-sm px-3 text-xs text-brand-text focus:border-brand-text outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-brand-text block mb-1">
+                    Acabamentos
+                  </label>
+                  <div className="flex items-center gap-1.5 h-9">
+                    {(
+                      [
+                        { id: 'gold', label: 'Dourado' },
+                        { id: 'silver', label: 'Prata' },
+                        { id: 'black', label: 'Preto' },
+                      ] as const
+                    ).map((fin) => {
+                      const active = importFinishes.includes(fin.id);
+                      return (
+                        <button
+                          key={fin.id}
+                          type="button"
+                          onClick={() => toggleImportFinish(fin.id)}
+                          className={`px-2.5 h-8 rounded-sm border text-[11px] font-medium transition-colors ${
+                            active
+                              ? 'bg-brand-text text-white border-brand-text'
+                              : 'bg-white text-brand-textMuted border-brand-border hover:border-brand-text'
+                          }`}
+                        >
+                          {fin.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-medium text-brand-text block mb-1">
-                  Fotos do Produto (1 link por linha ou arquivo)
+                  Fotos do Produto (prévia automática + links ou arquivo)
                 </label>
+
+                {importImages.filter((u) => u.trim()).length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2.5">
+                    {importImages
+                      .map((u) => u.trim())
+                      .filter(Boolean)
+                      .map((imgUrl, idx) => (
+                        <div
+                          key={`${imgUrl}-${idx}`}
+                          className="relative w-16 h-20 border border-brand-border bg-brand-background overflow-hidden group"
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={`Prévia ${idx + 1}`}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setImportImages((prev) => prev.filter((_, i) => i !== idx))
+                            }
+                            className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/75 text-white flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                            aria-label="Remover foto"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 mb-2">
                   <label className="h-8 px-3 rounded-sm bg-brand-background hover:bg-brand-elevated border border-brand-border text-brand-text text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors">
                     <Upload className="w-3.5 h-3.5" />
@@ -767,6 +957,18 @@ export default function AdminProdutosPage() {
                   onChange={(e) => setEditProductName(e.target.value)}
                   className="w-full h-10 bg-white border border-brand-border rounded-sm px-3 text-xs text-brand-text focus:border-brand-text outline-none"
                   required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-brand-text block mb-1">
+                  Descrição
+                </label>
+                <textarea
+                  rows={3}
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full bg-white border border-brand-border rounded-sm p-2.5 text-xs text-brand-text leading-relaxed focus:border-brand-text outline-none"
                 />
               </div>
 

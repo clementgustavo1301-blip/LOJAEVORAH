@@ -9,7 +9,10 @@ export interface ExtractedSupplierProduct {
   suggestedImages: string[];
   suggestedCost: number;
   suggestedPrice: number;
+  priceDetected: boolean;
   suggestedCategory: string;
+  suggestedSizes: string[];
+  suggestedFinishes: ('silver' | 'gold' | 'black')[];
   estimatedDeliveryDays: string;
   extractionMethod: string;
 }
@@ -232,14 +235,19 @@ function isInvalidImage(url: string): boolean {
 }
 
 /**
- * Cleans Shopee / TikTok description boilerplate
+ * Cleans Shopee / TikTok description boilerplate while preserving real jewelry specs
  */
 function cleanProductDescription(raw: string, productTitle: string): string {
   let desc = decodeHtmlEntities(raw)
     .replace(/\u0336/g, '')
     .replace(/^Compre\s+.+?\s+na\s+Shopee\s+Brasil!\s*/i, '')
+    .replace(/Pol[ií]tica\s+de\s+Devolu[çc][ãa]o\s+Shopee\s*:[\s\S]*$/i, '')
     .replace(/IMPORTANTE:\s*A cor pode ser ligeiramente diferente[\s\S]*$/i, '')
-    .replace(/\s+/g, ' ')
+    .replace(/Compre\s+agora\s+sua[\s\S]*$/i, '')
+    .replace(/\u2E3B+/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 
   if (
@@ -251,6 +259,69 @@ function cleanProductDescription(raw: string, productTitle: string): string {
     return `${productTitle} em Aço Inoxidável 316L de padrão joalheria. Resistente à água, perfume e suor, com acabamento de alto brilho hipoalergênico e garantia vitalícia contra oxidação.`;
   }
   return desc;
+}
+
+/**
+ * Extracts Shopee CDN image URLs encoded directly in `image_ids` query param
+ */
+function extractShopeeImagesFromUrlParams(urlStr: string): string[] {
+  try {
+    const parsed = new URL(urlStr);
+    const rawIds = parsed.searchParams.get('image_ids') || parsed.searchParams.get('image_id');
+    if (!rawIds) return [];
+    return rawIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => /^[a-z0-9-]+$/i.test(id) && id.length >= 10)
+      .map((id) => `https://down-br.img.susercontent.com/file/${id}`);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Infers available sizes and finishes cleanly from extracted title & description
+ */
+function inferSizesAndFinishes(
+  title: string,
+  description: string
+): {
+  sizes: string[];
+  finishes: ('silver' | 'gold' | 'black')[];
+} {
+  const combined = `${title} ${description}`;
+  const lower = combined.toLowerCase();
+
+  const cmMatches = [...combined.matchAll(/\b(\d{2})\s*cm\b/gi)].map((m) => `${m[1]}cm`);
+  const uniqueSizes = Array.from(new Set(cmMatches));
+  const sizes =
+    uniqueSizes.length >= 2
+      ? uniqueSizes
+      : uniqueSizes.length === 1
+        ? uniqueSizes
+        : lower.includes('40cm a 70cm') || lower.includes('40 a 70cm')
+          ? ['40cm', '45cm', '50cm', '60cm', '70cm']
+          : lower.includes('anel') || lower.includes('aliança')
+            ? ['16', '18', '20', '22']
+            : lower.includes('pulseira')
+              ? ['19cm', '21cm']
+              : ['45cm', '50cm', '60cm'];
+
+  const finishes: ('silver' | 'gold' | 'black')[] = [];
+  if (lower.includes('ouro') || lower.includes('dourad') || lower.includes('18k') || lower.includes('gold')) {
+    finishes.push('gold');
+  }
+  if (lower.includes('prata') || lower.includes('inox') || lower.includes('316l') || lower.includes('aço') || lower.includes('aco') || lower.includes('silver')) {
+    finishes.push('silver');
+  }
+  if (lower.includes('preto') || lower.includes('black') || lower.includes('ônix') || lower.includes('onix')) {
+    finishes.push('black');
+  }
+  if (finishes.length === 0) {
+    finishes.push('silver', 'gold');
+  }
+
+  return { sizes, finishes };
 }
 
 /**
@@ -546,7 +617,7 @@ export async function POST(req: Request) {
     let customSellerName: string | undefined;
     let extractionMethod = 'url-slug';
 
-    // 0A. Check TikTok URL parameters directly (`og_info` & `unique_id`)
+    // 0A. Check TikTok `og_info` & Shopee `image_ids` directly in URL params
     const initialTikTokParams = extractFromTikTokUrlParams(finalUrl);
     if (initialTikTokParams.title) {
       suggestedName = initialTikTokParams.title;
@@ -560,6 +631,14 @@ export async function POST(req: Request) {
     }
     if (initialTikTokParams.sellerHandle) {
       customSellerName = `TikTok Shop (@${initialTikTokParams.sellerHandle})`;
+    }
+    for (const imgUrl of [
+      ...extractShopeeImagesFromUrlParams(rawUrl),
+      ...extractShopeeImagesFromUrlParams(finalUrl),
+    ]) {
+      if (!isInvalidImage(imgUrl) && !suggestedImages.includes(imgUrl)) {
+        suggestedImages.push(imgUrl);
+      }
     }
 
     // 0B. Resolve short links (s.shopee.com.br, br.shp.ee, vt.tiktok.com, vm.tiktok.com) hop-by-hop
@@ -838,7 +917,12 @@ export async function POST(req: Request) {
 
     const cleanedDescription = cleanProductDescription(suggestedDescription, suggestedName);
     const suggestedCategory = inferCategoryFromName(suggestedName);
-    const finalCost = detectedCost && detectedCost > 0 ? detectedCost : 29.9;
+    const { sizes: suggestedSizes, finishes: suggestedFinishes } = inferSizesAndFinishes(
+      suggestedName,
+      cleanedDescription
+    );
+    const priceDetected = Boolean(detectedCost && detectedCost > 0);
+    const finalCost = priceDetected && detectedCost ? detectedCost : 29.9;
     // Sugere preço de venda com margem saudável (~3.2x o custo ou mínimo R$ 99,90)
     const calculatedSale = Math.max(99.9, Math.ceil((finalCost * 3.2) / 10) * 10 - 0.1);
 
@@ -865,7 +949,10 @@ export async function POST(req: Request) {
           : [categoryDefaultImage[suggestedCategory] || categoryDefaultImage['cat-correntes']],
       suggestedCost: Number(finalCost.toFixed(2)),
       suggestedPrice: Number(calculatedSale.toFixed(2)),
+      priceDetected,
       suggestedCategory,
+      suggestedSizes,
+      suggestedFinishes,
       estimatedDeliveryDays,
       extractionMethod,
     };

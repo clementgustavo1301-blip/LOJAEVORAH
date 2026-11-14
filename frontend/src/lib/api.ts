@@ -1034,6 +1034,7 @@ export async function updateProductSupplier(
   productId: string,
   data: {
     name?: string;
+    description?: string;
     supplierName?: string;
     supplierUrl?: string;
     supplierCost?: number;
@@ -1051,6 +1052,7 @@ export async function updateProductSupplier(
       return {
         ...prod,
         name: data.name !== undefined ? data.name : prod.name,
+        description: data.description !== undefined ? data.description : prod.description,
         supplierName: nextSupplier,
         supplierUrl: nextUrl,
         supplierCost: data.supplierCost !== undefined ? data.supplierCost : prod.supplierCost,
@@ -1069,6 +1071,7 @@ export async function updateProductSupplier(
   void runSupabaseTask(async (supabase) => {
     const updatePayload: Record<string, any> = {};
     if (data.name !== undefined) updatePayload.name = data.name;
+    if (data.description !== undefined) updatePayload.description = data.description;
     if (data.supplierName !== undefined) updatePayload.supplier_name = data.supplierName;
     if (data.supplierUrl !== undefined) updatePayload.supplier_url = data.supplierUrl;
     if (data.supplierCost !== undefined) updatePayload.supplier_cost = data.supplierCost;
