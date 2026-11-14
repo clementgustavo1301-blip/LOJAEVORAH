@@ -4,7 +4,6 @@ import React, { useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { HERO_MODEL_BLUR_DATA_URL } from '@/lib/media-placeholders';
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -95,23 +94,23 @@ export function HeroParallax() {
 
   return (
     <section
-      className="relative w-full h-[470px] sm:h-[500px] lg:h-[530px] xl:h-[550px] bg-[#000000] text-white border-b border-white/10 overflow-hidden select-none"
+      className="relative w-full h-[550px] sm:h-[580px] md:h-[530px] xl:h-[550px] bg-[#000000] text-white border-b border-white/10 overflow-hidden select-none"
       aria-label="Destaque da Coleção EVORAH"
     >
       {/* 1. CAMADA SUPERIOR: VÍDEO EVORAH POSICIONADO NO TOPO (WebM VP9 + MP4 Faststart) */}
-      <div className="absolute inset-x-0 top-0 pointer-events-none z-[4] mix-blend-screen">
-        <div className="w-full max-w-[1380px] mx-auto px-6 sm:px-10 lg:px-12">
+      <div className="absolute inset-x-0 top-0 pointer-events-none z-[6] mix-blend-screen">
+        <div className="w-full max-w-[1380px] mx-auto px-3 sm:px-8 lg:px-12">
           <div
             ref={videoLayerRef}
-            className="w-[116%] -ml-[8%] sm:w-full sm:ml-0 md:w-[calc(100%-330px)] max-w-[900px] will-change-transform origin-top"
+            className="w-[106%] -ml-[3%] sm:w-full sm:ml-0 md:w-[calc(100%-340px)] max-w-[880px] will-change-transform origin-top"
           >
             <div
-              className="w-full aspect-video -translate-y-[20%]"
+              className="w-full aspect-video -mt-8 sm:-mt-10 md:mt-0 md:-translate-y-[16%]"
               style={{
                 WebkitMaskImage:
-                  'radial-gradient(ellipse 84% 58% at 50% 50%, #000 62%, transparent 98%)',
+                  'radial-gradient(ellipse 92% 72% at 50% 50%, #000 70%, transparent 99%)',
                 maskImage:
-                  'radial-gradient(ellipse 84% 58% at 50% 50%, #000 62%, transparent 98%)',
+                  'radial-gradient(ellipse 92% 72% at 50% 50%, #000 70%, transparent 99%)',
               }}
             >
               <video
@@ -124,7 +123,7 @@ export function HeroParallax() {
                 disablePictureInPicture
                 disableRemotePlayback
                 aria-hidden="true"
-                className="w-full h-full object-contain opacity-[0.36]"
+                className="w-full h-full object-contain opacity-[0.92] md:opacity-[0.62]"
               >
                 <source src="/brand/evorah-hero.webm" type="video/webm" />
                 <source src="/brand/evorah-hero.mp4" type="video/mp4" />
@@ -132,53 +131,45 @@ export function HeroParallax() {
             </div>
           </div>
         </div>
-
-        {/* Véu atmosférico sutil mantendo a animação discreta e mais apagada de fundo */}
-        <div
-          className="absolute inset-0 bg-gradient-to-r from-[#000000]/55 via-[#000000]/18 via-38% to-transparent"
-          aria-hidden="true"
-        />
       </div>
 
       {/* 2. GLOW AMBIENTE DOURADO ATRÁS DO MODELO (camada de parallax via scroll) */}
       <div
         ref={glowLayerRef}
-        className="absolute right-0 inset-y-0 w-[460px] lg:w-[600px] flex items-center pointer-events-none z-[1] will-change-transform"
+        className="absolute right-[-40px] sm:right-0 top-[90px] md:top-0 bottom-0 w-[440px] md:w-[560px] lg:w-[620px] flex items-center pointer-events-none z-[1] will-change-transform"
         aria-hidden="true"
       >
-        <div className="w-full h-[460px] lg:h-[600px] bg-[radial-gradient(circle_at_center,rgba(201,164,82,0.16)_0%,transparent_65%)]" />
+        <div className="w-full h-[460px] lg:h-[600px] bg-[radial-gradient(circle_at_60%_50%,rgba(201,164,82,0.11)_0%,rgba(201,164,82,0.03)_42%,transparent_70%)]" />
       </div>
 
-      {/* Gradiente sutil inferior para transição contínua com a seção seguinte */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#000000] to-transparent pointer-events-none z-[3]"
-        aria-hidden="true"
-      />
-
       {/*
-        3. MODELO — foto inteira visível (object-contain) em mobile e desktop com parallax suave.
-        Mantém topo e lateral direita rentes às bordas iniciais sem expor recortes.
+        3. MODELO — posicionado abaixo da animação no mobile para deixar EVORAH 100% visível,
+        com máscaras de borda suaves (zero quebras de cor ou retângulos).
       */}
       <div
         ref={modelLayerRef}
-        className="block absolute top-0 right-0 h-[78%] sm:h-[90%] md:h-full aspect-[1027/1531] opacity-85 sm:opacity-95 md:opacity-100 pointer-events-none z-10 will-change-transform"
+        className="block absolute top-[106px] sm:top-[116px] md:top-0 right-[-8px] sm:right-0 h-[calc(100%-106px)] sm:h-[calc(100%-116px)] md:h-full aspect-[1027/1531] opacity-100 pointer-events-none z-[8] will-change-transform"
       >
-        <Image
-          src="/images/hero-model-clean.webp"
-          alt="Modelo masculino usando corrente com pingente de cruz dourada e pulseira EVORAH"
-          fill
-          priority
-          fetchPriority="high"
-          placeholder="blur"
-          blurDataURL={HERO_MODEL_BLUR_DATA_URL}
-          sizes="(max-width: 768px) 260px, 380px"
-          className="object-contain object-right-top"
-        />
-        <div
-          className="absolute inset-0 bg-gradient-to-t from-[#000000] via-[#000000]/55 via-35% to-transparent md:hidden"
-          aria-hidden="true"
-        />
+        <div className="relative w-full h-full hero-model-mask-top">
+          <div className="relative w-full h-full hero-model-mask-left">
+            <Image
+              src="/images/hero-model-v2.webp"
+              alt="Modelo masculino usando corrente com pingente de cruz dourada e pulseira EVORAH"
+              fill
+              priority
+              fetchPriority="high"
+              sizes="(max-width: 768px) 320px, 380px"
+              className="object-contain object-right-top"
+            />
+          </div>
+        </div>
       </div>
+
+      {/* Fade contínuo full-width na base (mescla o modelo e o fundo sem emendas verticais) */}
+      <div
+        className="absolute inset-x-0 bottom-0 h-[235px] sm:h-[245px] md:h-28 bg-gradient-to-t from-[#000000] via-[#000000]/82 via-42% to-transparent pointer-events-none z-[12]"
+        aria-hidden="true"
+      />
 
       {/* 4. CONTEÚDO EDITORIAL (MOBILE-FIRST ANCORADO NA BASE ESQUERDA) */}
       <div className="relative z-20 w-full max-w-[1380px] h-full mx-auto px-4 sm:px-8 lg:px-12 flex items-end pb-7 sm:pb-10 lg:pb-12">

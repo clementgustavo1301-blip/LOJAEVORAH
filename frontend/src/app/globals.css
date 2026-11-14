@@ -75,3 +75,24 @@ body {
   content-visibility: auto;
   contain-intrinsic-size: 1px 640px;
 }
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hero-model-mask-left {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 5%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 5%);
+}
+
+@media (max-width: 767px) {
+  .hero-model-mask-top {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 15%);
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 15%);
+  }
+}
