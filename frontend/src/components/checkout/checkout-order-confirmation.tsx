@@ -471,13 +471,15 @@ export function CheckoutOrderConfirmation({
           </div>
 
           <div className="pt-2 space-y-2.5">
-            <Link
-              href={`/rastreio?pedido=${orderConfirmed.orderNumber}`}
-              className="h-11 w-full bg-brand-gold text-[#0A0A0A] hover:bg-[#DFC383] font-semibold text-[11px] tracking-[0.16em] uppercase flex items-center justify-center gap-2 transition-colors"
-            >
-              <span>Acompanhar pedido</span>
-              <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.75} />
-            </Link>
+            {isPaid && (
+              <Link
+                href={`/rastreio?pedido=${orderConfirmed.orderNumber}`}
+                className="h-11 w-full bg-brand-gold text-[#0A0A0A] hover:bg-[#DFC383] font-semibold text-[11px] tracking-[0.16em] uppercase flex items-center justify-center gap-2 transition-colors"
+              >
+                <span>Acompanhar pedido</span>
+                <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.75} />
+              </Link>
+            )}
             <Link
               href="/produtos"
               className="h-11 w-full border border-white/25 text-[#FAF9F6] hover:border-brand-gold hover:text-brand-gold font-semibold text-[11px] tracking-[0.16em] uppercase flex items-center justify-center transition-colors"
