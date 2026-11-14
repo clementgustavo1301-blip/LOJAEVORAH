@@ -8,7 +8,7 @@ import { CategoryIcon, CategoryIconName } from '@/components/home/category-icons
 import { EDITORIAL_HAND_BLUR_DATA_URL } from '@/lib/media-placeholders';
 import { ArrowRight } from 'lucide-react';
 
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
 
 const CATEGORIES: { name: string; slug: CategoryIconName }[] = [
   { name: 'Correntes', slug: 'correntes' },

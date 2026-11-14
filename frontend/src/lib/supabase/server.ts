@@ -9,7 +9,7 @@ function serverTimedFetch(input: RequestInfo | URL, init?: RequestInit): Promise
     init?.signal && typeof AbortSignal.any === 'function'
       ? AbortSignal.any([init.signal, timeoutSignal])
       : init?.signal || timeoutSignal;
-  return fetch(input, { ...init, signal });
+  return fetch(input, { ...init, signal, cache: 'no-store' });
 }
 
 export async function createSupabaseServerClient() {

@@ -8,7 +8,7 @@ function timedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Respo
     init?.signal && typeof AbortSignal.any === 'function'
       ? AbortSignal.any([init.signal, timeoutSignal])
       : init?.signal || timeoutSignal;
-  return fetch(input, { ...init, signal });
+  return fetch(input, { ...init, signal, cache: 'no-store' });
 }
 
 export function isSupabaseConfigured(): boolean {

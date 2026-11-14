@@ -6,6 +6,7 @@ import {
   fetchOrders,
   getStoredOrdersSnapshot,
   updateOrderFulfillment,
+  deleteOrder,
   detectSupplierPlatform,
   syncPendingOrdersWithServer,
   updateStoredOrderPaymentStatus,
@@ -26,6 +27,7 @@ import {
   CreditCard,
   QrCode,
   XCircle,
+  Trash2,
 } from 'lucide-react';
 
 const CARRIER_OPTIONS = [
@@ -45,6 +47,7 @@ export default function AdminPedidosPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [simulatingOrderNumber, setSimulatingOrderNumber] = useState<string | null>(null);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
 
   // Modal de Envio e Rastreamento
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -104,6 +107,23 @@ export default function AdminPedidosPage() {
       }
     } finally {
       setSimulatingOrderNumber(null);
+    }
+  };
+
+  const handleDeleteOrder = async (order: Order) => {
+    if (!confirm(`Deseja excluir o pedido #${order.orderNumber}?`)) return;
+    setDeletingOrderId(order.id);
+    try {
+      await deleteOrder(order.id);
+      setOrders((prev) => prev.filter((item) => item.id !== order.id));
+      if (selectedOrder?.id === order.id) {
+        setSelectedOrder(null);
+      }
+      showToast(`Pedido #${order.orderNumber} excluído.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao excluir pedido.');
+    } finally {
+      setDeletingOrderId(null);
     }
   };
 
@@ -518,6 +538,17 @@ Cidade/UF: ${addr.city || ''}${addr.state ? ` - ${addr.state}` : ''}`;
                           >
                             <Truck className="w-3.5 h-3.5" />
                             <span>Atualizar envio</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteOrder(order)}
+                            disabled={deletingOrderId === order.id}
+                            title="Excluir pedido"
+                            aria-label={`Excluir pedido #${order.orderNumber}`}
+                            className="h-8 px-2.5 rounded-sm bg-white border border-brand-border hover:border-red-600 hover:text-red-600 text-xs text-brand-textMuted flex items-center justify-center transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>

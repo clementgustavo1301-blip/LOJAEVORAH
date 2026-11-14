@@ -2,6 +2,8 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Product, CartItem, FinishType } from '@/types';
+import { fetchProducts } from '@/lib/api';
+import { isSupabaseConfigured } from '@/lib/supabase/client';
 
 interface CartContextType {
   items: CartItem[];
@@ -43,9 +45,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    let hasCartItems = false;
+
     try {
       const savedCart = localStorage.getItem('brand_name_cart');
-      if (savedCart) setItems(JSON.parse(savedCart));
+      if (savedCart) {
+        const parsed = JSON.parse(savedCart);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setItems(parsed);
+          hasCartItems = true;
+        }
+      }
 
       const savedWishlist = localStorage.getItem('brand_name_wishlist');
       if (savedWishlist) setWishlist(JSON.parse(savedWishlist));
@@ -56,6 +67,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // Ignorar fallback
     }
     setMounted(true);
+
+    if (hasCartItems && isSupabaseConfigured()) {
+      fetchProducts({ fresh: true }).then((catalog) => {
+        if (!active || catalog.length === 0) return;
+        const byId = new Map(catalog.map((p) => [p.id, p]));
+        setItems((prev) =>
+          prev.map((item) => {
+            const latest = byId.get(item.productId);
+            if (!latest) return item;
+            const livePrice = latest.promotionalPrice || latest.price;
+            return { ...item, product: latest, price: livePrice };
+          })
+        );
+      });
+    }
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -87,7 +117,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         const existing = prev.find((i) => i.id === itemId);
         if (existing) {
           return prev.map((i) =>
-            i.id === itemId ? { ...i, quantity: i.quantity + quantity } : i
+            i.id === itemId
+              ? { ...i, product, price: unitPrice, quantity: i.quantity + quantity }
+              : i
           );
         }
         return [

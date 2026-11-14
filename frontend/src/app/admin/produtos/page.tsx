@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   fetchProducts,
   getStoredProductsSnapshot,
@@ -27,9 +28,20 @@ import {
   Upload,
 } from 'lucide-react';
 
+function parseCurrencyInput(raw: string, fallback: number): number {
+  const cleaned = raw.replace(/[^\d.,]/g, '').trim();
+  if (!cleaned) return fallback;
+  const normalized = cleaned.includes(',')
+    ? cleaned.replace(/\./g, '').replace(',', '.')
+    : cleaned;
+  const value = Number.parseFloat(normalized);
+  return Number.isFinite(value) && value > 0 ? Math.round(value * 100) / 100 : fallback;
+}
+
 export default function AdminProdutosPage() {
-  const [products, setProducts] = useState<Product[]>(() => getStoredProductsSnapshot());
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'ALL' | SupplierPlatform>('ALL');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -88,7 +100,7 @@ export default function AdminProdutosPage() {
   const loadProducts = async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
     try {
-      const data = await fetchProducts();
+      const data = await fetchProducts({ fresh: true });
       setProducts(data);
     } finally {
       setLoading(false);
@@ -254,8 +266,8 @@ export default function AdminProdutosPage() {
 
     setImportingSaving(true);
     try {
-      const costNum = parseFloat(importCost.replace(',', '.')) || 29.9;
-      const priceNum = parseFloat(importSalePrice.replace(',', '.')) || 129.9;
+      const costNum = parseCurrencyInput(importCost, 29.9);
+      const priceNum = parseCurrencyInput(importSalePrice, 129.9);
       const cleanImgs = importImages.filter((u) => u.trim().length > 0);
       const parsedSizes = importSizes
         .split(',')
@@ -278,6 +290,7 @@ export default function AdminProdutosPage() {
 
       setProducts((prev) => [created, ...prev]);
       setIsImportModalOpen(false);
+      router.refresh();
       showToast(`Produto "${created.name}" cadastrado.`);
 
       // Reset
@@ -287,8 +300,8 @@ export default function AdminProdutosPage() {
       setExtractionFeedback(null);
       setPastedAdText('');
       setShowPasteHelper(false);
-    } catch {
-      alert('Erro ao cadastrar produto. Tente novamente.');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao cadastrar produto. Tente novamente.');
     } finally {
       setImportingSaving(false);
     }
@@ -312,20 +325,21 @@ export default function AdminProdutosPage() {
     setSaving(true);
 
     try {
-      const costNum = parseFloat(supplierCost.replace(',', '.')) || 25;
-      const priceNum = parseFloat(salePrice.replace(',', '.')) || selectedProduct.price;
+      const costNum = parseCurrencyInput(supplierCost, 25);
+      const priceNum = parseCurrencyInput(salePrice, selectedProduct.price);
       const imgList = editImagesText
         .split('\n')
         .map((s) => s.trim())
         .filter(Boolean);
 
-      await updateProductSupplier(selectedProduct.id, {
+      const persisted = await updateProductSupplier(selectedProduct.id, {
         name: editProductName.trim() || undefined,
         description: editDescription.trim() || undefined,
         supplierName: supplierName.trim(),
         supplierUrl: supplierUrl.trim(),
         supplierCost: costNum,
         price: priceNum,
+        promotionalPrice: null,
         estimatedDeliveryDays: deliveryDays.trim(),
         images: imgList.length > 0 ? imgList : undefined,
       });
@@ -333,24 +347,27 @@ export default function AdminProdutosPage() {
       setProducts((prev) =>
         prev.map((item) =>
           item.id === selectedProduct.id
-            ? {
-              ...item,
-              name: editProductName.trim() || item.name,
-              description: editDescription.trim() || item.description,
-              price: priceNum,
-              promotionalPrice: undefined,
-              supplierName: supplierName.trim(),
-              supplierUrl: supplierUrl.trim(),
-              supplierCost: costNum,
-              estimatedDeliveryDays: deliveryDays.trim(),
-              images: imgList.length > 0 ? imgList : item.images,
-            }
+            ? persisted ?? {
+                ...item,
+                name: editProductName.trim() || item.name,
+                description: editDescription.trim() || item.description,
+                price: priceNum,
+                promotionalPrice: null,
+                supplierName: supplierName.trim(),
+                supplierUrl: supplierUrl.trim(),
+                supplierCost: costNum,
+                estimatedDeliveryDays: deliveryDays.trim(),
+                images: imgList.length > 0 ? imgList : item.images,
+              }
             : item
         )
       );
 
       setSelectedProduct(null);
+      router.refresh();
       showToast('Produto atualizado.');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao atualizar produto no banco.');
     } finally {
       setSaving(false);
     }
@@ -362,9 +379,10 @@ export default function AdminProdutosPage() {
     try {
       await deleteProduct(p.id);
       setProducts((prev) => prev.filter((item) => item.id !== p.id));
+      router.refresh();
       showToast(`Produto "${p.name}" removido.`);
-    } catch {
-      alert('Erro ao excluir produto.');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao excluir produto.');
     }
   };
 

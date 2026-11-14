@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/cart-context';
 import { FALLBACK_PRODUCTS, fetchProducts, getStoredProductsSnapshot } from '@/lib/api';
+import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { ProductCard } from '@/components/product/product-card';
 import { Heart, ArrowRight } from 'lucide-react';
 
@@ -17,9 +18,9 @@ export default function FavoritosPage() {
     if (stored.length > 0) setCatalog(stored);
 
     const missingWishlisted = wishlist.some((id) => !base.some((p) => p.id === id));
-    if (missingWishlisted) {
+    if (missingWishlisted || (wishlist.length > 0 && isSupabaseConfigured())) {
       let active = true;
-      fetchProducts().then((remote) => {
+      fetchProducts({ fresh: true }).then((remote) => {
         if (active && remote.length > 0) {
           setCatalog(remote);
         }

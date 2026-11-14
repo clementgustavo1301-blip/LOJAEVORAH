@@ -266,7 +266,7 @@ function mapCategory(row: any): Category {
   };
 }
 
-function mapProduct(row: any): Product {
+export function mapProduct(row: any): Product {
   const finishes = Array.isArray(row.available_finishes)
     ? row.available_finishes
     : (typeof row.available_finishes === 'string' ? JSON.parse(row.available_finishes || '[]') : ['silver']);
@@ -386,6 +386,22 @@ function markBackendDown() {
   }
 }
 
+export function invalidateProductsCache() {
+  serverCache.delete('products');
+  serverCache.delete('categories');
+  productsInFlight = null;
+  productSlugInFlight.clear();
+  supabaseDownUntil = isSupabaseConfigured() ? 0 : Number.MAX_SAFE_INTEGER;
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.removeItem(SUPABASE_DOWN_STORAGE_KEY);
+      window.sessionStorage.removeItem(SUPABASE_DOWN_STORAGE_KEY);
+    } catch {
+      // Ignore storage access restrictions
+    }
+  }
+}
+
 export function getStoredProductsSnapshot(): Product[] {
   const cached = serverCache.get('products') as Product[] | undefined;
   if (cached && cached.length > 0) return cached;
@@ -430,9 +446,14 @@ async function runSupabaseTask<T>(
 }
 
 export async function fetchCategories(): Promise<Category[]> {
-  const cached = serverCache.get('categories') as Category[] | undefined;
-  if (cached && cached.length > 0) {
-    return cached;
+  const isServer = typeof window === 'undefined';
+  const useCache = !isServer || !isSupabaseConfigured();
+
+  if (useCache) {
+    const cached = serverCache.get('categories') as Category[] | undefined;
+    if (cached && cached.length > 0) {
+      return cached;
+    }
   }
 
   const supabaseCategories = await runSupabaseTask(async (supabase) => {
@@ -445,7 +466,7 @@ export async function fetchCategories(): Promise<Category[]> {
   });
 
   if (supabaseCategories && supabaseCategories.length > 0) {
-    serverCache.set('categories', supabaseCategories);
+    if (!isServer) serverCache.set('categories', supabaseCategories);
     return supabaseCategories;
   }
 
@@ -457,7 +478,7 @@ export async function fetchCategories(): Promise<Category[]> {
       });
       if (res.ok) {
         const json = await res.json();
-        serverCache.set('categories', json);
+        if (!isServer) serverCache.set('categories', json);
         return json;
       }
       markBackendDown();
@@ -525,29 +546,48 @@ export async function fetchProducts(params?: {
   featured?: boolean;
   bestSeller?: boolean;
   isNew?: boolean;
+  fresh?: boolean;
 }): Promise<Product[]> {
-  const cached = serverCache.get('products') as Product[] | undefined;
-  if (cached && cached.length > 0) {
-    return filterAndSortProducts(cached, params);
+  const isServer = typeof window === 'undefined';
+  if (params?.fresh) {
+    invalidateProductsCache();
+  }
+
+  const useCache = !params?.fresh && (!isServer || !isSupabaseConfigured());
+  if (useCache) {
+    const cached = serverCache.get('products') as Product[] | undefined;
+    if (cached && cached.length > 0) {
+      return filterAndSortProducts(cached, params);
+    }
   }
 
   if (!isSupabaseDown()) {
+    const runQuery = () =>
+      runSupabaseTask(async (supabase) => {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*, category:categories(*)')
+          .order('created_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+          const mapped = data.map(mapProduct);
+          if (!isServer) {
+            serverCache.set('products', mapped);
+            saveStoredProducts(mapped);
+          }
+          return mapped;
+        }
+        if (error) markSupabaseDown();
+        return null;
+      });
+
+    if (isServer || params?.fresh) {
+      const list = (await runQuery()) ?? getStoredProducts();
+      return filterAndSortProducts(list, params);
+    }
+
     if (!productsInFlight) {
       productsInFlight = (async () => {
-        const result = await runSupabaseTask(async (supabase) => {
-          const { data, error } = await supabase
-            .from('products')
-            .select('*, category:categories(*)')
-            .order('created_at', { ascending: false });
-          if (!error && data && data.length > 0) {
-            const mapped = data.map(mapProduct);
-            serverCache.set('products', mapped);
-            return mapped;
-          }
-          markSupabaseDown();
-          return null;
-        });
-        return result ?? getStoredProducts();
+        return (await runQuery()) ?? getStoredProducts();
       })().finally(() => {
         productsInFlight = null;
       });
@@ -560,14 +600,17 @@ export async function fetchProducts(params?: {
 }
 
 export async function fetchProductBySlug(slug: string): Promise<Product | null> {
-  const cached = serverCache.get('products') as Product[] | undefined;
-  if (cached && cached.length > 0) {
-    const cachedHit = cached.find(p => p.slug === slug);
-    if (cachedHit) return cachedHit;
+  const isServer = typeof window === 'undefined';
+  if (!isServer || !isSupabaseConfigured()) {
+    const cached = serverCache.get('products') as Product[] | undefined;
+    if (cached && cached.length > 0) {
+      const cachedHit = cached.find(p => p.slug === slug);
+      if (cachedHit) return cachedHit;
+    }
   }
 
   if (!isSupabaseDown()) {
-    const existing = productSlugInFlight.get(slug);
+    const existing = !isServer ? productSlugInFlight.get(slug) : undefined;
     if (existing) return existing;
 
     const req = (async () => {
@@ -586,9 +629,9 @@ export async function fetchProductBySlug(slug: string): Promise<Product | null> 
       });
       return hit ?? (getStoredProducts().find(p => p.slug === slug) || null);
     })().finally(() => {
-      productSlugInFlight.delete(slug);
+      if (!isServer) productSlugInFlight.delete(slug);
     });
-    productSlugInFlight.set(slug, req);
+    if (!isServer) productSlugInFlight.set(slug, req);
     return req;
   }
   return getStoredProducts().find(p => p.slug === slug) || null;
@@ -880,7 +923,8 @@ export async function fetchOrders(): Promise<Order[]> {
           return data ? data.map(mapOrder) : null;
         });
 
-        if (remoteOrders && remoteOrders.length > 0) {
+        if (remoteOrders !== null) {
+          saveStoredOrders(remoteOrders);
           return remoteOrders;
         }
         return getStoredOrders();
@@ -1030,6 +1074,42 @@ export async function updateOrderFulfillment(
   return true;
 }
 
+async function adminApiRequest<T>(
+  path: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  body: Record<string, unknown>
+): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+    body: JSON.stringify(body),
+  });
+
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof payload?.error === 'string' && payload.error.trim()
+        ? payload.error
+        : `Falha na operação (${res.status}).`
+    );
+  }
+  return payload as T;
+}
+
+export async function deleteOrder(orderId: string): Promise<boolean> {
+  if (typeof window !== 'undefined' && isSupabaseConfigured()) {
+    await adminApiRequest<{ deleted: boolean }>('/api/admin/orders', 'DELETE', {
+      id: orderId,
+    });
+  }
+
+  const existing = getStoredOrders();
+  saveStoredOrders(existing.filter((o) => o.id !== orderId && o.orderNumber !== orderId));
+
+  return true;
+}
+
 export async function updateProductSupplier(
   productId: string,
   data: {
@@ -1043,51 +1123,42 @@ export async function updateProductSupplier(
     promotionalPrice?: number | null;
     images?: string[];
   }
-): Promise<boolean> {
+): Promise<Product | null> {
+  let persistedProduct: Product | null = null;
+
+  if (typeof window !== 'undefined' && isSupabaseConfigured()) {
+    const res = await adminApiRequest<{ product: Product }>('/api/admin/products', 'PATCH', {
+      id: productId,
+      ...data,
+    });
+    persistedProduct = res.product;
+  }
+
   const list = getStoredProducts();
   const updated = list.map((prod) => {
-    if (prod.id === productId) {
-      const nextUrl = data.supplierUrl !== undefined ? data.supplierUrl : prod.supplierUrl;
-      const nextSupplier = data.supplierName !== undefined ? data.supplierName : prod.supplierName;
-      return {
-        ...prod,
-        name: data.name !== undefined ? data.name : prod.name,
-        description: data.description !== undefined ? data.description : prod.description,
-        supplierName: nextSupplier,
-        supplierUrl: nextUrl,
-        supplierCost: data.supplierCost !== undefined ? data.supplierCost : prod.supplierCost,
-        supplierPlatform: detectSupplierPlatform(nextUrl, nextSupplier),
-        estimatedDeliveryDays: data.estimatedDeliveryDays !== undefined ? data.estimatedDeliveryDays : prod.estimatedDeliveryDays,
-        price: data.price !== undefined ? data.price : prod.price,
-        promotionalPrice: data.promotionalPrice !== undefined ? data.promotionalPrice : prod.promotionalPrice,
-        images: data.images !== undefined ? data.images : prod.images,
-      };
-    }
-    return prod;
+    if (prod.id !== productId) return prod;
+    if (persistedProduct) return persistedProduct;
+
+    const nextUrl = data.supplierUrl !== undefined ? data.supplierUrl : prod.supplierUrl;
+    const nextSupplier = data.supplierName !== undefined ? data.supplierName : prod.supplierName;
+    return {
+      ...prod,
+      name: data.name !== undefined ? data.name : prod.name,
+      description: data.description !== undefined ? data.description : prod.description,
+      supplierName: nextSupplier,
+      supplierUrl: nextUrl,
+      supplierCost: data.supplierCost !== undefined ? data.supplierCost : prod.supplierCost,
+      supplierPlatform: detectSupplierPlatform(nextUrl, nextSupplier),
+      estimatedDeliveryDays: data.estimatedDeliveryDays !== undefined ? data.estimatedDeliveryDays : prod.estimatedDeliveryDays,
+      price: data.price !== undefined ? data.price : prod.price,
+      promotionalPrice: data.promotionalPrice !== undefined ? data.promotionalPrice : prod.promotionalPrice,
+      images: data.images !== undefined ? data.images : prod.images,
+    };
   });
   saveStoredProducts(updated);
-  serverCache.delete('products');
+  invalidateProductsCache();
 
-  void runSupabaseTask(async (supabase) => {
-    const updatePayload: Record<string, any> = {};
-    if (data.name !== undefined) updatePayload.name = data.name;
-    if (data.description !== undefined) updatePayload.description = data.description;
-    if (data.supplierName !== undefined) updatePayload.supplier_name = data.supplierName;
-    if (data.supplierUrl !== undefined) updatePayload.supplier_url = data.supplierUrl;
-    if (data.supplierCost !== undefined) updatePayload.supplier_cost = data.supplierCost;
-    if (data.estimatedDeliveryDays !== undefined) updatePayload.estimated_delivery_days = data.estimatedDeliveryDays;
-    if (data.price !== undefined) updatePayload.price = data.price;
-    if (data.promotionalPrice !== undefined) updatePayload.promotional_price = data.promotionalPrice;
-    if (data.images !== undefined) updatePayload.images = data.images;
-
-    await supabase
-      .from('products')
-      .update(updatePayload)
-      .eq('id', productId);
-    return true;
-  });
-
-  return true;
+  return persistedProduct ?? updated.find((p) => p.id === productId) ?? null;
 }
 
 export async function createProductFromImport(payload: {
@@ -1146,59 +1217,31 @@ export async function createProductFromImport(payload: {
         : [fallbackImg],
   };
 
-  // Salva no estado local imediatamente
+  let createdProduct = newProduct;
+  if (typeof window !== 'undefined' && isSupabaseConfigured()) {
+    const res = await adminApiRequest<{ product: Product }>('/api/admin/products', 'POST', {
+      ...newProduct,
+    });
+    createdProduct = res.product;
+  }
+
   const existing = getStoredProducts();
-  saveStoredProducts([newProduct, ...existing]);
-  serverCache.delete('products');
+  saveStoredProducts([createdProduct, ...existing.filter((p) => p.id !== createdProduct.id)]);
+  invalidateProductsCache();
 
-  // Tenta salvar no Supabase caso esteja conectado
-  const remoteCreated = await runSupabaseTask(async (supabase) => {
-    const { data, error } = await supabase
-      .from('products')
-      .insert({
-        id: newProduct.id,
-        name: newProduct.name,
-        slug: newProduct.slug,
-        description: newProduct.description,
-        specifications: newProduct.specifications,
-        care_instructions: newProduct.careInstructions,
-        material: newProduct.material,
-        price: newProduct.price,
-        promotional_price: newProduct.promotionalPrice,
-        rating: newProduct.rating,
-        reviews_count: newProduct.reviewsCount,
-        is_new: true,
-        is_best_seller: true,
-        is_featured: true,
-        available_finishes: newProduct.availableFinishes,
-        available_sizes: newProduct.availableSizes,
-        images: newProduct.images,
-        category_id: newProduct.categoryId || 'cat-correntes',
-        supplier_name: newProduct.supplierName,
-        supplier_url: newProduct.supplierUrl,
-        supplier_cost: newProduct.supplierCost,
-        estimated_delivery_days: newProduct.estimatedDeliveryDays,
-      })
-      .select()
-      .single();
-
-    if (!error && data) return mapProduct(data);
-    if (error) markSupabaseDown();
-    return null;
-  });
-
-  return remoteCreated ?? newProduct;
+  return createdProduct;
 }
 
 export async function deleteProduct(productId: string): Promise<boolean> {
+  if (typeof window !== 'undefined' && isSupabaseConfigured()) {
+    await adminApiRequest<{ deleted: boolean }>('/api/admin/products', 'DELETE', {
+      id: productId,
+    });
+  }
+
   const existing = getStoredProducts();
   saveStoredProducts(existing.filter((p) => p.id !== productId));
-  serverCache.delete('products');
-
-  void runSupabaseTask(async (supabase) => {
-    await supabase.from('products').delete().eq('id', productId);
-    return true;
-  });
+  invalidateProductsCache();
 
   return true;
 }

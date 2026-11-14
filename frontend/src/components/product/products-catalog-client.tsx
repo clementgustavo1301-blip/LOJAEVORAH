@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getStoredProductsSnapshot } from '@/lib/api';
+import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { ProductCard } from '@/components/product/product-card';
 import { Category, FinishType, Product } from '@/types';
 import { SlidersHorizontal, X } from 'lucide-react';
@@ -51,13 +52,16 @@ export function ProductsCatalogClient({
   const [sortBy, setSortBy] = useState<string>('featured');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  // Sincroniza novos produtos salvos localmente pelo painel admin sem atrasar a pintura inicial
+  // Mantém a vitrine sincronizada com os dados reais do servidor (usa snapshot local só se Supabase estiver desativado)
   useEffect(() => {
-    const localSnapshot = getStoredProductsSnapshot();
-    if (localSnapshot.length > 0) {
-      setProducts(localSnapshot);
+    setProducts(initialProducts);
+    if (!isSupabaseConfigured()) {
+      const localSnapshot = getStoredProductsSnapshot();
+      if (localSnapshot.length > 0) {
+        setProducts(localSnapshot);
+      }
     }
-  }, []);
+  }, [initialProducts]);
 
   const handleSyncParams = React.useCallback(
     (params: {

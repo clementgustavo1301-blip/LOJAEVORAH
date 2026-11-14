@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { fetchProductBySlug, getStoredProductsSnapshot } from '@/lib/api';
+import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { fetchAddressByCep, formatCepInput } from '@/lib/cep';
 import { useCart } from '@/context/cart-context';
 import { FinishType, Product } from '@/types';
@@ -43,16 +44,23 @@ export function ProductDetailClient({
   const [activeAccordion, setActiveAccordion] = useState<string | null>('specs');
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
 
-  // Sincroniza itens importados localmente no admin caso a peça não estivesse no snapshot estático inicial
+  // Sincroniza com o servidor e só usa snapshot local em modo demo offline
   useEffect(() => {
-    const localList = getStoredProductsSnapshot();
-    const localHit = localList.find((p) => p.slug === slug);
-    if (localHit) {
-      setProduct(localHit);
-      setSelectedFinish(localHit.availableFinishes?.[0] || 'silver');
-      setSelectedSize(localHit.availableSizes?.[0] || '');
-      setRelatedProducts(localList.filter((p) => p.id !== localHit.id).slice(0, 4));
-      return;
+    if (initialProduct) {
+      setProduct(initialProduct);
+      setRelatedProducts(initialRelated);
+    }
+
+    if (!isSupabaseConfigured()) {
+      const localList = getStoredProductsSnapshot();
+      const localHit = localList.find((p) => p.slug === slug);
+      if (localHit) {
+        setProduct(localHit);
+        setSelectedFinish(localHit.availableFinishes?.[0] || 'silver');
+        setSelectedSize(localHit.availableSizes?.[0] || '');
+        setRelatedProducts(localList.filter((p) => p.id !== localHit.id).slice(0, 4));
+        return;
+      }
     }
 
     if (!initialProduct) {
@@ -67,7 +75,7 @@ export function ProductDetailClient({
         active = false;
       };
     }
-  }, [slug, initialProduct]);
+  }, [slug, initialProduct, initialRelated]);
 
   if (!product) {
     return (
