@@ -23,6 +23,7 @@ import {
   MercadoPagoCardSubmitData,
   hasMercadoPagoPublicKey,
 } from '@/components/checkout/mercado-pago-card-brick';
+import { TrustSeals } from '@/components/ui/trust-seals';
 import { OrderCreatePayload, OrderPaymentStatus } from '@/types';
 import {
   CreditCard,
@@ -475,7 +476,7 @@ export default function CheckoutPage() {
           </div>
           <div className="flex items-center gap-2 text-xs text-brand-textMuted pb-0.5">
             <Lock className="w-3.5 h-3.5 text-brand-gold" strokeWidth={1.75} />
-            <span>Ambiente criptografado • Mercado Pago</span>
+            <span>Site Seguro SSL • Compra 100% Garantida</span>
           </div>
         </div>
 
@@ -901,53 +902,57 @@ export default function CheckoutPage() {
             </div>
 
             {/* Resumo Lateral */}
-            <div className="lg:col-span-5 bg-white rounded border border-brand-border p-6 space-y-4">
-              <h3 className="text-xs font-semibold tracking-wider uppercase text-brand-text pb-2.5 border-b border-brand-border">
-                Itens do Pedido ({items.length})
-              </h3>
-              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-                {items.map((i) => (
-                  <div key={i.id} className="flex justify-between items-center text-xs">
-                    <div>
-                      <p className="font-medium text-brand-text">{i.product.name}</p>
-                      <p className="text-xs text-brand-textMuted">
-                        Qtd: {i.quantity} • {i.finish} {i.size ? `• ${i.size}` : ''}
-                      </p>
+            <aside className="lg:col-span-5 space-y-4">
+              <div className="bg-white rounded border border-brand-border p-6 space-y-4">
+                <h3 className="text-xs font-semibold tracking-wider uppercase text-brand-text pb-2.5 border-b border-brand-border">
+                  Itens do Pedido ({items.length})
+                </h3>
+                <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                  {items.map((i) => (
+                    <div key={i.id} className="flex justify-between items-center text-xs">
+                      <div>
+                        <p className="font-medium text-brand-text">{i.product.name}</p>
+                        <p className="text-xs text-brand-textMuted">
+                          Qtd: {i.quantity} • {i.finish} {i.size ? `• ${i.size}` : ''}
+                        </p>
+                      </div>
+                      <span className="text-brand-text font-semibold tabular-nums">
+                        R$ {(i.price * i.quantity).toFixed(2).replace('.', ',')}
+                      </span>
                     </div>
-                    <span className="text-brand-text font-semibold tabular-nums">
-                      R$ {(i.price * i.quantity).toFixed(2).replace('.', ',')}
-                    </span>
+                  ))}
+                </div>
+
+                <div className="pt-3 border-t border-brand-border space-y-2 text-xs text-brand-textMuted tabular-nums">
+                  <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span className="text-brand-text">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
                   </div>
-                ))}
+                  {discount > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-medium">
+                      <span>Cupom</span>
+                      <span>- R$ {discount.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  )}
+                  {formData.paymentMethod === 'PIX' && (
+                    <div className="flex justify-between text-emerald-700 font-medium">
+                      <span>Desconto PIX (5%)</span>
+                      <span>- R$ {pixDiscount.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span>Frete</span>
+                    <span className="text-brand-text">{shippingFee === 0 ? 'Grátis' : `R$ ${shippingFee.toFixed(2).replace('.', ',')}`}</span>
+                  </div>
+                  <div className="flex justify-between text-base font-semibold text-brand-text pt-2.5 border-t border-brand-border">
+                    <span>Total</span>
+                    <span>R$ {finalTotal.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="pt-3 border-t border-brand-border space-y-2 text-xs text-brand-textMuted tabular-nums">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span className="text-brand-text">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-                </div>
-                {discount > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>Cupom</span>
-                    <span>- R$ {discount.toFixed(2).replace('.', ',')}</span>
-                  </div>
-                )}
-                {formData.paymentMethod === 'PIX' && (
-                  <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>Desconto PIX (5%)</span>
-                    <span>- R$ {pixDiscount.toFixed(2).replace('.', ',')}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span>Frete</span>
-                  <span className="text-brand-text">{shippingFee === 0 ? 'Grátis' : `R$ ${shippingFee.toFixed(2).replace('.', ',')}`}</span>
-                </div>
-                <div className="flex justify-between text-base font-semibold text-brand-text pt-2.5 border-t border-brand-border">
-                  <span>Total</span>
-                  <span>R$ {finalTotal.toFixed(2).replace('.', ',')}</span>
-                </div>
-              </div>
-            </div>
+              <TrustSeals variant="checkout-panel" className="rounded" />
+            </aside>
           </div>
         )}
       </div>

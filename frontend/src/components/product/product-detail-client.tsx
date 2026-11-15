@@ -12,6 +12,7 @@ import { FinishType, Product } from '@/types';
 import { SwatchSelector, FINISH_DETAILS } from '@/components/ui/swatch-selector';
 import { QuantitySelector } from '@/components/ui/quantity-selector';
 import { ProductCard } from '@/components/product/product-card';
+import { TrustSeals } from '@/components/ui/trust-seals';
 import { Heart, Ruler, Plus, Minus, X } from 'lucide-react';
 
 interface ProductDetailClientProps {
@@ -332,6 +333,8 @@ export function ProductDetailClient({
                   Comprar agora
                 </button>
               </div>
+
+              <TrustSeals variant="inline-compact" className="mt-1" />
             </div>
 
             {/* Cálculo de Entrega */}

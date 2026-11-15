@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Logo } from '@/components/ui/logo';
 import { FooterNewsletter } from '@/components/layout/footer-newsletter';
+import { TrustSeals } from '@/components/ui/trust-seals';
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -98,6 +99,9 @@ export function Footer() {
           </ul>
         </div>
       </div>
+
+      {/* Selos de Segurança SSL e Compra Garantida */}
+      <TrustSeals variant="footer-band" />
 
       {/* Barra Inferior */}
       <div className="border-t border-brand-border py-5 px-6 sm:px-10 lg:px-12 text-[11px] text-brand-textMuted bg-brand-background">

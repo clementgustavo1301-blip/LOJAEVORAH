@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useCart } from '@/context/cart-context';
 import { Trash2, ArrowRight } from 'lucide-react';
 import { FINISH_DETAILS } from '@/components/ui/swatch-selector';
+import { TrustSeals } from '@/components/ui/trust-seals';
 
 export default function CartPage() {
   const {
@@ -254,6 +255,8 @@ export default function CartPage() {
               <span>Finalizar compra</span>
               <ArrowRight className="w-3.5 h-3.5 stroke-[1.5]" />
             </Link>
+
+            <TrustSeals variant="inline-compact" />
           </div>
         </div>
       </div>

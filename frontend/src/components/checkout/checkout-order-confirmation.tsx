@@ -518,9 +518,9 @@ export function CheckoutOrderConfirmation({
             </Link>
           </div>
 
-          <div className="pt-2 flex items-center justify-center gap-2 text-[11px] text-[#A3A7AE]">
+          <div className="pt-2 flex items-center justify-center gap-2 text-[11px] text-[#A3A7AE] text-center">
             <ShieldCheck className="w-3.5 h-3.5 text-brand-gold shrink-0" strokeWidth={1.75} />
-            <span>Pagamento protegido • Mercado Pago</span>
+            <span>Site Seguro SSL • Compra 100% Garantida</span>
           </div>
         </motion.aside>
       </div>
