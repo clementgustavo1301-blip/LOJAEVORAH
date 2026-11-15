@@ -181,14 +181,12 @@ export default function AdminProdutosPage() {
   const [importIsBestSeller, setImportIsBestSeller] = useState(true);
   const [importIsNew, setImportIsNew] = useState(true);
   const [importIsFeatured, setImportIsFeatured] = useState(true);
-  const [importCost, setImportCost] = useState('29.90');
-  const [importSalePrice, setImportSalePrice] = useState('129.90');
+  const [importCost, setImportCost] = useState('');
+  const [importSalePrice, setImportSalePrice] = useState('');
   const [importDeliveryDays, setImportDeliveryDays] = useState('4 a 8 dias úteis');
-  const [importImages, setImportImages] = useState<string[]>([
-    '/images/chain-grumet.webp',
-  ]);
+  const [importImages, setImportImages] = useState<string[]>([]);
   const [importFinishes, setImportFinishes] = useState<FinishType[]>(['silver', 'gold', 'black']);
-  const [importSizes, setImportSizes] = useState('50cm, 60cm, 70cm');
+  const [importSizes, setImportSizes] = useState('');
   const [importingSaving, setImportingSaving] = useState(false);
 
   // Edição de produto existente
@@ -428,6 +426,10 @@ export default function AdminProdutosPage() {
       setImportName('');
       setImportDescription('');
       setImportUrl('');
+      setImportCost('');
+      setImportSalePrice('');
+      setImportSizes('');
+      setImportImages([]);
       setImportCategory('cat-correntes');
       setImportIsBestSeller(true);
       setImportIsNew(true);

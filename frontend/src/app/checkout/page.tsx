@@ -34,22 +34,54 @@ import {
   MapPin,
 } from 'lucide-react';
 
+function formatCpfInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 11);
+  return digits
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+}
+
+function formatPhoneInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 2) return digits ? `(${digits}` : '';
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function isValidCpf(raw: string): boolean {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
+  const calcDigit = (length: number) => {
+    let sum = 0;
+    for (let i = 0; i < length; i++) {
+      sum += Number(digits[i]) * (length + 1 - i);
+    }
+    const rem = (sum * 10) % 11;
+    return rem === 10 ? 0 : rem;
+  };
+  return calcDigit(9) === Number(digits[9]) && calcDigit(10) === Number(digits[10]);
+}
+
 export default function CheckoutPage() {
   const { items, subtotal, discount, shippingFee, total, coupon, clearCart } = useCart();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [formData, setFormData] = useState({
-    name: 'Alexandre Silva',
-    email: 'alexandre@email.com',
-    phone: '(11) 98765-4321',
-    cpf: '123.456.789-00',
-    cep: '01310-100',
-    street: 'Avenida Paulista',
-    number: '1000',
-    complement: 'Apto 102',
-    neighborhood: 'Bela Vista',
-    city: 'São Paulo',
-    state: 'SP',
+    name: '',
+    email: '',
+    phone: '',
+    cpf: '',
+    cep: '',
+    street: '',
+    number: '',
+    complement: '',
+    neighborhood: '',
+    city: '',
+    state: '',
     paymentMethod: 'PIX' as 'PIX' | 'CREDIT_CARD',
     installments: 6,
   });
@@ -252,6 +284,10 @@ export default function CheckoutPage() {
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
     setCheckoutError(null);
+    if (step === 1 && !isValidCpf(formData.cpf)) {
+      setCheckoutError('Informe um CPF válido.');
+      return;
+    }
     if (step < 3) {
       setStep((s) => (s + 1) as 1 | 2 | 3 | 4);
     } else if (step === 3 && !isBrickActiveStep) {
@@ -444,55 +480,47 @@ export default function CheckoutPage() {
         </div>
 
         {/* Barra de Progresso Arquitetônica */}
-        <div className="mb-8">
-          <div className="grid grid-cols-4 gap-2 sm:gap-4 text-xs font-medium">
-            {[
-              { num: 1, label: 'Identificação' },
-              { num: 2, label: 'Entrega' },
-              { num: 3, label: 'Pagamento' },
-              { num: 4, label: 'Confirmação' },
-            ].map((st) => {
-              const isReached = step >= st.num;
-              const isCurrent = step === st.num;
-              return (
-                <div
-                  key={st.num}
-                  className={`pb-3 border-b-2 transition-colors flex items-center gap-2 ${
-                    isCurrent
-                      ? 'border-brand-gold text-brand-text font-semibold'
-                      : isReached
-                        ? 'border-brand-text text-brand-text font-semibold'
-                        : 'border-brand-border text-brand-textMuted'
+        <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-8 text-xs font-medium">
+          {[
+            { num: 1, label: 'Identificação' },
+            { num: 2, label: 'Entrega' },
+            { num: 3, label: 'Pagamento' },
+            { num: 4, label: 'Confirmação' },
+          ].map((st) => {
+            const isReached = step >= st.num;
+            const isCurrent = step === st.num;
+            return (
+              <div
+                key={st.num}
+                className={`pb-3 border-b-2 transition-colors flex items-center gap-2 ${isCurrent
+                  ? 'border-brand-gold text-brand-text font-semibold'
+                  : isReached
+                    ? 'border-brand-text text-brand-text font-semibold'
+                    : 'border-brand-border text-brand-textMuted'
                   }`}
-                >
-                  <span
-                    className={`w-5 h-5 flex items-center justify-center text-[10px] font-mono tabular-nums shrink-0 ${
-                      isCurrent
-                        ? 'bg-[#0A0A0A] text-brand-gold border border-brand-gold/60'
-                        : isReached
-                          ? 'bg-brand-text text-white'
-                          : 'bg-brand-elevated text-brand-textMuted border border-brand-border'
+              >
+                <span
+                  className={`w-5 h-5 flex items-center justify-center text-[10px] font-mono tabular-nums shrink-0 ${isCurrent
+                    ? 'bg-[#0A0A0A] text-brand-gold border border-brand-gold/60'
+                    : isReached
+                      ? 'bg-brand-text text-white'
+                      : 'bg-brand-elevated text-brand-textMuted border border-brand-border'
                     }`}
-                  >
-                    {step > st.num ? '✓' : `0${st.num}`}
-                  </span>
-                  <span className="hidden sm:inline truncate">{st.label}</span>
-                </div>
-              );
-            })}
-          </div>
-          <p className="sm:hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-textMuted mt-2">
-            Etapa 0{step} de 04 •{' '}
-            <span className="text-brand-text">
-              {step === 1
-                ? 'Identificação'
-                : step === 2
-                  ? 'Entrega'
-                  : step === 3
-                    ? 'Pagamento'
-                    : 'Confirmação'}
-            </span>
-          </p>
+                >
+                  {step > st.num ? '✓' : `0${st.num}`}
+                </span>
+                <span
+                  className={
+                    isCurrent
+                      ? 'inline truncate text-[11px] sm:text-xs'
+                      : 'hidden sm:inline truncate'
+                  }
+                >
+                  {st.label}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
         {/* Etapa 4: Confirmação */}
@@ -525,11 +553,14 @@ export default function CheckoutPage() {
                     </h3>
                     <div className="space-y-3.5">
                       <div>
-                        <label className="text-xs font-medium text-brand-text block mb-1">
+                        <label htmlFor="checkout-name" className="text-xs font-medium text-brand-text block mb-1">
                           Nome completo
                         </label>
                         <input
+                          id="checkout-name"
                           type="text"
+                          autoComplete="name"
+                          placeholder="Seu nome completo"
                           required
                           value={formData.name}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -538,11 +569,14 @@ export default function CheckoutPage() {
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div>
-                          <label className="text-xs font-medium text-brand-text block mb-1">
+                          <label htmlFor="checkout-email" className="text-xs font-medium text-brand-text block mb-1">
                             E-mail
                           </label>
                           <input
+                            id="checkout-email"
                             type="email"
+                            autoComplete="email"
+                            placeholder="seu@email.com"
                             required
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -550,28 +584,41 @@ export default function CheckoutPage() {
                           />
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-brand-text block mb-1">
+                          <label htmlFor="checkout-phone" className="text-xs font-medium text-brand-text block mb-1">
                             Telefone / WhatsApp
                           </label>
                           <input
-                            type="text"
+                            id="checkout-phone"
+                            type="tel"
+                            inputMode="tel"
+                            autoComplete="tel"
+                            maxLength={15}
+                            placeholder="(00) 00000-0000"
                             required
                             value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            className="w-full h-10 px-3 rounded-sm bg-brand-background border border-brand-border text-sm text-brand-text focus:border-brand-text focus:bg-white outline-none transition-colors"
+                            onChange={(e) =>
+                              setFormData({ ...formData, phone: formatPhoneInput(e.target.value) })
+                            }
+                            className="w-full h-10 px-3 rounded-sm bg-brand-background border border-brand-border text-sm text-brand-text tabular-nums focus:border-brand-text focus:bg-white outline-none transition-colors"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-brand-text block mb-1">
+                        <label htmlFor="checkout-cpf" className="text-xs font-medium text-brand-text block mb-1">
                           CPF
                         </label>
                         <input
+                          id="checkout-cpf"
                           type="text"
+                          inputMode="numeric"
+                          maxLength={14}
+                          placeholder="000.000.000-00"
                           required
                           value={formData.cpf}
-                          onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                          className="w-full h-10 px-3 rounded-sm bg-brand-background border border-brand-border text-sm text-brand-text focus:border-brand-text focus:bg-white outline-none transition-colors"
+                          onChange={(e) =>
+                            setFormData({ ...formData, cpf: formatCpfInput(e.target.value) })
+                          }
+                          className="w-full h-10 px-3 rounded-sm bg-brand-background border border-brand-border text-sm text-brand-text tabular-nums focus:border-brand-text focus:bg-white outline-none transition-colors"
                         />
                       </div>
                     </div>
@@ -632,6 +679,7 @@ export default function CheckoutPage() {
                             id="checkout-street"
                             type="text"
                             autoComplete="street-address"
+                            placeholder="Nome da rua ou avenida"
                             required
                             value={formData.street}
                             onChange={(e) => setFormData({ ...formData, street: e.target.value })}
@@ -649,6 +697,7 @@ export default function CheckoutPage() {
                             id="checkout-number"
                             ref={numberInputRef}
                             type="text"
+                            placeholder="Nº"
                             required
                             value={formData.number}
                             onChange={(e) => setFormData({ ...formData, number: e.target.value })}
@@ -662,6 +711,7 @@ export default function CheckoutPage() {
                           <input
                             id="checkout-complement"
                             type="text"
+                            placeholder="Opcional"
                             value={formData.complement}
                             onChange={(e) => setFormData({ ...formData, complement: e.target.value })}
                             className="w-full h-10 px-3 rounded-sm bg-brand-background border border-brand-border text-sm text-brand-text focus:border-brand-text focus:bg-white outline-none transition-colors"
@@ -678,6 +728,7 @@ export default function CheckoutPage() {
                             id="checkout-neighborhood"
                             type="text"
                             autoComplete="address-level3"
+                            placeholder="Bairro"
                             required
                             value={formData.neighborhood}
                             onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
@@ -692,6 +743,7 @@ export default function CheckoutPage() {
                             id="checkout-city"
                             type="text"
                             autoComplete="address-level2"
+                            placeholder="Cidade"
                             required
                             value={formData.city}
                             onChange={(e) => setFormData({ ...formData, city: e.target.value })}
@@ -706,6 +758,7 @@ export default function CheckoutPage() {
                             id="checkout-state"
                             type="text"
                             autoComplete="address-level1"
+                            placeholder="UF"
                             maxLength={2}
                             required
                             value={formData.state}
