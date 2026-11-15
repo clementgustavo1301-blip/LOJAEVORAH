@@ -27,25 +27,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     let mounted = true;
     let unsubscribe: (() => void) | undefined;
 
-    // Timeout curto para nunca travar a UI caso Supabase esteja inacessível
-    const authTimer = setTimeout(() => {
-      if (mounted) {
-        setCheckingAuth(false);
-      }
-    }, 450);
-
     import('@/lib/supabase/client').then(({ getSupabaseBrowserClient }) => {
       const supabase = getSupabaseBrowserClient();
       if (!supabase || !mounted) {
-        clearTimeout(authTimer);
-        if (mounted) setCheckingAuth(false);
+        if (mounted) {
+          if (process.env.NODE_ENV !== 'production') {
+            setCheckingAuth(false);
+          } else {
+            router.replace('/admin/login');
+          }
+        }
         return;
       }
 
       supabase.auth
         .getUser()
         .then((res: { data: { user: { email?: string } | null } }) => {
-          clearTimeout(authTimer);
           if (!mounted) return;
           if (!res.data?.user) {
             router.replace('/admin/login');
@@ -55,15 +52,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           }
         })
         .catch(() => {
-          clearTimeout(authTimer);
           if (mounted) {
-            setCheckingAuth(false);
+            if (process.env.NODE_ENV !== 'production') {
+              setCheckingAuth(false);
+            } else {
+              router.replace('/admin/login');
+            }
           }
         });
 
       const { data: listener } = supabase.auth.onAuthStateChange(
         (_event: string, session: { user?: { email?: string } } | null) => {
-          clearTimeout(authTimer);
           if (!session?.user && !isLoginPage) {
             router.replace('/admin/login');
           } else if (session?.user) {
@@ -77,7 +76,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     return () => {
       mounted = false;
-      clearTimeout(authTimer);
       unsubscribe?.();
     };
   }, [isLoginPage, router]);

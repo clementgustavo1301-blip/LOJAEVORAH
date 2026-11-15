@@ -10,8 +10,8 @@ export function Footer() {
   return (
     <footer className="w-full bg-white border-t border-brand-border text-brand-textMuted">
       {/* Corpo Editorial do Rodapé */}
-      <div className="max-w-[1240px] mx-auto px-6 sm:px-10 lg:px-12 py-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12">
-        <div className="lg:col-span-5 flex flex-col justify-between gap-8">
+      <div className="max-w-[1240px] mx-auto px-6 sm:px-10 lg:px-12 py-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10">
+        <div className="lg:col-span-4 flex flex-col justify-between gap-8">
           <div>
             <Logo variant="horizontal" color="black" />
             <p className="text-xs text-brand-textMuted leading-relaxed max-w-sm mt-5">
@@ -30,7 +30,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-2">
           <h4 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text mb-4">
             Coleções
           </h4>
@@ -68,34 +68,49 @@ export function Footer() {
           </ul>
         </div>
 
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-3">
           <h4 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text mb-4">
-            Concierge & Suporte
+            Institucional & Garantias
           </h4>
           <ul className="flex flex-col gap-2.5 text-xs text-brand-textMuted">
+            <li>
+              <Link href="/garantia" className="hover:text-brand-text transition-colors">
+                Garantia Vitalícia
+              </Link>
+            </li>
+            <li>
+              <Link href="/trocas-e-devolucoes" className="hover:text-brand-text transition-colors">
+                Trocas e Devoluções (CDC)
+              </Link>
+            </li>
+            <li>
+              <Link href="/privacidade" className="hover:text-brand-text transition-colors">
+                Privacidade e LGPD
+              </Link>
+            </li>
             <li>
               <Link
                 href="/rastreio"
                 className="text-brand-text font-medium hover:text-brand-gold transition-colors inline-flex items-center gap-1.5"
               >
-                Rastrear meu pedido
+                Rastrear Pedido
               </Link>
             </li>
+          </ul>
+        </div>
+
+        <div className="lg:col-span-3">
+          <h4 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text mb-4">
+            Concierge & Suporte
+          </h4>
+          <ul className="flex flex-col gap-2.5 text-xs text-brand-textMuted">
             <li>
-              <span className="text-brand-text font-medium">WhatsApp:</span> (11) 98765-4321
+              <span className="text-brand-text font-medium">Concierge:</span> atendimento@evorah.com.br
             </li>
             <li>
-              <span className="text-brand-text font-medium">E-mail:</span> atendimento@evorah.com.br
+              <span className="text-brand-text font-medium">E-mail:</span> contato@evorah.com.br
             </li>
-            <li>Segunda a sexta, das 09h às 18h</li>
-            <li className="pt-3">
-              <Link
-                href="/admin/pedidos"
-                className="text-brand-textMuted hover:text-brand-text transition-colors text-[11px] uppercase tracking-[0.14em]"
-              >
-                Acesso Administrativo
-              </Link>
-            </li>
+            <li>Seg. a Sex. • 09h às 18h (Brasília)</li>
           </ul>
         </div>
       </div>
@@ -107,15 +122,21 @@ export function Footer() {
       <div className="border-t border-brand-border py-5 px-6 sm:px-10 lg:px-12 text-[11px] text-brand-textMuted bg-brand-background">
         <div className="max-w-[1240px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <p>© {currentYear} EVORAH EXPERIENCE. Todos os direitos reservados.</p>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-5">
             <Link href="/produtos" className="hover:text-brand-text transition-colors">
               Catálogo
             </Link>
+            <Link href="/garantia" className="hover:text-brand-text transition-colors">
+              Garantia
+            </Link>
+            <Link href="/trocas-e-devolucoes" className="hover:text-brand-text transition-colors">
+              Trocas (CDC)
+            </Link>
+            <Link href="/privacidade" className="hover:text-brand-text transition-colors">
+              Privacidade
+            </Link>
             <Link href="/rastreio" className="hover:text-brand-text transition-colors">
               Rastreio
-            </Link>
-            <Link href="/favoritos" className="hover:text-brand-text transition-colors">
-              Favoritos
             </Link>
           </div>
         </div>

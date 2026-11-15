@@ -114,7 +114,7 @@ export default function RastreioPage() {
             Rastrear Pedido
           </h1>
           <p className="text-xs text-brand-textMuted mt-2 max-w-md mx-auto leading-relaxed">
-            Informe o número do pedido, e-mail utilizado na compra ou código de rastreamento.
+            Informe o número do pedido (ex.: INX-...) ou o código de rastreamento enviado após o despacho.
           </p>
         </div>
 
@@ -127,7 +127,7 @@ export default function RastreioPage() {
           className="relative max-w-xl mx-auto mb-12"
         >
           <label htmlFor="tracking-search-input" className="sr-only">
-            Número do pedido, e-mail ou código de rastreio
+            Número do pedido ou código de rastreamento
           </label>
           <div className="relative flex items-center">
             <input
@@ -135,7 +135,7 @@ export default function RastreioPage() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Número do pedido ou e-mail..."
+              placeholder="Número do pedido ou código de rastreio..."
               className="w-full h-12 bg-white border border-brand-border pl-4 pr-36 text-xs text-brand-text placeholder:text-brand-textMuted focus:border-brand-text outline-none transition-colors"
             />
             <button
@@ -163,7 +163,7 @@ export default function RastreioPage() {
               Pedido não localizado
             </h3>
             <p className="text-xs text-brand-textMuted mt-1.5 max-w-sm mx-auto leading-relaxed">
-              Verifique se o código do pedido ou e-mail foi informado corretamente.
+              Verifique se o número do pedido ou o código de rastreamento foi informado exatamente como consta na confirmação.
             </p>
           </div>
         )}

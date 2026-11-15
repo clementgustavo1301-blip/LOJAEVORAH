@@ -23,7 +23,6 @@ export async function GET(
     found: true,
     orderNumber: order.orderNumber,
     paymentStatus: order.paymentStatus,
-    paymentId: order.paymentId,
     paymentMethod: order.paymentMethod,
     fulfillmentStatus: order.fulfillmentStatus,
     total: order.total,

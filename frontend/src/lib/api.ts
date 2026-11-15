@@ -105,6 +105,16 @@ function mapCategory(row: any): Category {
   };
 }
 
+function sanitizeCatalogText(raw?: string | null): string {
+  if (!raw) return '';
+  return raw
+    .replace(/\u0336/g, '')
+    .replace(/^(?:[💰🔥⚡✨🛍️💎👑🎁]+\s*)*(?:R\$\s*\d[\d.,]*\s*)+(?:-\d+%\s*)?\|\s*(?:[💰🔥⚡✨🛍️💎👑🎁]+\s*)?/giu, '')
+    .replace(/^(?:[💰🔥⚡✨🛍️💎👑🎁]+\s*)+/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function mapProduct(row: any): Product {
   const finishes = Array.isArray(row.available_finishes)
     ? row.available_finishes
@@ -121,9 +131,9 @@ export function mapProduct(row: any): Product {
 
   return {
     id: row.id,
-    name: row.name,
+    name: sanitizeCatalogText(row.name),
     slug: row.slug,
-    description: row.description || '',
+    description: sanitizeCatalogText(row.description),
     specifications: row.specifications || '',
     careInstructions: row.care_instructions || '',
     material: row.material || 'Aço Cirúrgico 316L',
@@ -178,8 +188,8 @@ function getCooldownUntil(inMemoryUntil: number, storageKey: string): number {
     try {
       const stored = Number(
         window.localStorage.getItem(storageKey) ||
-          window.sessionStorage.getItem(storageKey) ||
-          '0'
+        window.sessionStorage.getItem(storageKey) ||
+        '0'
       );
       if (now <= stored) return stored;
     } catch {
@@ -661,21 +671,21 @@ function mapOrder(row: any): Order {
 
   const items: OrderItem[] = Array.isArray(row.items)
     ? row.items.map((it: any) => {
-        const matchedProd = catalog.find(p => p.id === it.product_id || p.name === it.product_name);
-        return {
-          id: it.id,
-          orderId: it.order_id,
-          productId: it.product_id || matchedProd?.id || '',
-          productName: it.product_name || 'Joia Aço Inox',
-          finish: it.finish || 'silver',
-          size: it.size || null,
-          unitPrice: Number(it.unit_price || 0),
-          quantity: Number(it.quantity || 1),
-          supplierName: it.supplier_name || matchedProd?.supplierName || row.supplier_name,
-          supplierUrl: it.supplier_url || matchedProd?.supplierUrl || row.supplier_url,
-          supplierCost: matchedProd?.supplierCost ?? 25.0,
-        };
-      })
+      const matchedProd = catalog.find(p => p.id === it.product_id || p.name === it.product_name);
+      return {
+        id: it.id,
+        orderId: it.order_id,
+        productId: it.product_id || matchedProd?.id || '',
+        productName: it.product_name || 'Joia Aço Inox',
+        finish: it.finish || 'silver',
+        size: it.size || null,
+        unitPrice: Number(it.unit_price || 0),
+        quantity: Number(it.quantity || 1),
+        supplierName: it.supplier_name || matchedProd?.supplierName || row.supplier_name,
+        supplierUrl: it.supplier_url || matchedProd?.supplierUrl || row.supplier_url,
+        supplierCost: matchedProd?.supplierCost ?? 25.0,
+      };
+    })
     : [];
 
   return {
@@ -750,25 +760,21 @@ export const FALLBACK_ORDERS: Order[] = [
 ];
 
 export async function fetchOrders(): Promise<Order[]> {
-  if (!isSupabaseDown()) {
+  if (typeof window !== 'undefined' && isSupabaseConfigured()) {
     if (!ordersInFlight) {
       ordersInFlight = (async () => {
-        const remoteOrders = await runSupabaseTask(async (supabase) => {
-          const { data, error } = await supabase
-            .from('orders')
-            .select('*, items:order_items(*)')
-            .order('created_at', { ascending: false });
-
-          if (error) {
-            markSupabaseDown();
-            return null;
+        try {
+          const res = await fetch('/api/admin/orders', { cache: 'no-store' });
+          if (res.ok) {
+            const payload = await res.json();
+            if (Array.isArray(payload?.orders)) {
+              const mapped = payload.orders.map(mapOrder);
+              saveStoredOrders(mapped);
+              return mapped;
+            }
           }
-          return data ? data.map(mapOrder) : null;
-        });
-
-        if (remoteOrders !== null) {
-          saveStoredOrders(remoteOrders);
-          return remoteOrders;
+        } catch {
+          // Mantém snapshot local se API admin estiver indisponível
         }
         return getStoredOrders();
       })().finally(() => {
@@ -783,28 +789,31 @@ export async function fetchOrders(): Promise<Order[]> {
 
 export async function fetchOrderByTrackingOrNumber(query: string): Promise<Order | null> {
   const clean = query.trim().toUpperCase();
-  const remoteOrder = await runSupabaseTask(async (supabase) => {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*, items:order_items(*)')
-      .or(`order_number.ilike.%${clean}%,customer_email.ilike.%${clean}%,tracking_code.ilike.%${clean}%`)
-      .maybeSingle();
+  if (clean.length < 4 || clean.includes('@')) {
+    return null;
+  }
 
-    if (error) {
-      markSupabaseDown();
-      return null;
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch(`/api/orders/track?q=${encodeURIComponent(clean)}`, {
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const payload = await res.json();
+        if (payload?.found && payload?.order) {
+          return mapOrder(payload.order);
+        }
+      }
+    } catch {
+      // Fallback para pedidos locais da sessão caso API esteja offline
     }
-    return data ? mapOrder(data) : null;
-  });
-
-  if (remoteOrder) return remoteOrder;
+  }
 
   const localHit =
     getStoredOrders().find(
       (o) =>
-        o.orderNumber.toUpperCase().includes(clean) ||
-        o.customerEmail.toUpperCase().includes(clean) ||
-        (o.trackingCode && o.trackingCode.toUpperCase().includes(clean))
+        o.orderNumber.toUpperCase() === clean ||
+        (o.trackingCode && o.trackingCode.toUpperCase() === clean)
     ) || null;
 
   if (localHit && typeof window !== 'undefined') {
@@ -882,6 +891,13 @@ export async function updateOrderFulfillment(
     supplierUrl?: string;
   }
 ): Promise<boolean> {
+  if (typeof window !== 'undefined' && isSupabaseConfigured()) {
+    await adminApiRequest('/api/admin/orders', 'PATCH', {
+      id: orderId,
+      ...data,
+    });
+  }
+
   const orders = getStoredOrders();
   const updatedOrders = orders.map((order) => {
     if (order.id === orderId || order.orderNumber === orderId) {
@@ -898,21 +914,6 @@ export async function updateOrderFulfillment(
     return order;
   });
   saveStoredOrders(updatedOrders);
-
-  void runSupabaseTask(async (supabase) => {
-    await supabase
-      .from('orders')
-      .update({
-        fulfillment_status: data.fulfillmentStatus,
-        supplier_order_id: data.supplierOrderId,
-        supplier_name: data.supplierName,
-        tracking_code: data.trackingCode,
-        tracking_carrier: data.trackingCarrier || 'Shopee Xpress (SPX)',
-        supplier_url: data.supplierUrl,
-      })
-      .eq('id', orderId);
-    return true;
-  });
 
   return true;
 }

@@ -1,4 +1,71 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthorizedAdminDb } from '@/lib/admin-api-auth';
+
+const ALLOWED_SUPPLIER_DOMAINS = [
+  'shopee.com.br',
+  'shp.ee',
+  'tiktok.com',
+  'tiktokv.com',
+];
+
+function isAllowedSupplierUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:') return false;
+    if (parsed.username || parsed.password) return false;
+
+    const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
+    if (!host || /^[\d.]+$/.test(host) || host.includes(':')) return false;
+
+    return ALLOWED_SUPPLIER_DOMAINS.some(
+      (domain) => host === domain || host.endsWith(`.${domain}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function fetchAllowedSupplierHtml(
+  startUrl: string,
+  userAgent: string
+): Promise<{ ok: boolean; html: string; finalUrl: string } | null> {
+  let currentUrl = startUrl;
+
+  for (let hop = 0; hop < 5; hop++) {
+    if (!isAllowedSupplierUrl(currentUrl)) return null;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4500);
+    try {
+      const response = await fetch(currentUrl, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8',
+        },
+        signal: controller.signal,
+      });
+
+      const loc = response.headers.get('location');
+      if (loc && response.status >= 300 && response.status < 400) {
+        const nextUrl = new URL(loc, currentUrl).toString();
+        if (!isAllowedSupplierUrl(nextUrl)) return null;
+        currentUrl = nextUrl;
+        continue;
+      }
+
+      if (!response.ok) return null;
+      const html = await response.text();
+      return { ok: true, html, finalUrl: currentUrl };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return null;
+}
 
 export interface ExtractedSupplierProduct {
   platform: 'SHOPEE' | 'TIKTOK' | 'OTHER';
@@ -591,8 +658,11 @@ async function lookupShopeeByItemId(itemId: string): Promise<{
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const { error: authError } = await getAuthorizedAdminDb();
+    if (authError) return authError;
+
     const body = await req.json();
     const rawInputUrl = (body.url || '').trim();
     let pastedText = (body.pastedText || '').trim();
@@ -608,7 +678,19 @@ export async function POST(req: Request) {
       pastedText = rawInputUrl.replace(rawUrl, '').trim();
     }
 
-    let finalUrl = unwrapRedirectTarget(rawUrl);
+    if (rawUrl && !isAllowedSupplierUrl(rawUrl)) {
+      return NextResponse.json(
+        {
+          error:
+            'URL de fornecedor não permitida. Utilize links oficiais HTTPS da Shopee ou TikTok Shop.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const candidateUnwrapped = unwrapRedirectTarget(rawUrl);
+    let finalUrl =
+      candidateUnwrapped && isAllowedSupplierUrl(candidateUnwrapped) ? candidateUnwrapped : rawUrl;
     let bestProductUrl = finalUrl;
     let suggestedName = '';
     let suggestedDescription = '';
@@ -642,10 +724,12 @@ export async function POST(req: Request) {
     }
 
     // 0B. Resolve short links (s.shopee.com.br, br.shp.ee, vt.tiktok.com, vm.tiktok.com) hop-by-hop
-    if (rawUrl && rawUrl.startsWith('http')) {
+    if (rawUrl && isAllowedSupplierUrl(rawUrl)) {
       try {
         let hopUrl = rawUrl;
         for (let hop = 0; hop < 5; hop++) {
+          if (!isAllowedSupplierUrl(hopUrl)) break;
+
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 3500);
           const hopRes = await fetch(hopUrl, {
@@ -663,7 +747,12 @@ export async function POST(req: Request) {
           if (!loc) break;
 
           const nextUrl = new URL(loc, hopUrl).toString();
-          const unwrappedNext = unwrapRedirectTarget(nextUrl);
+          if (!isAllowedSupplierUrl(nextUrl)) break;
+
+          const rawUnwrappedNext = unwrapRedirectTarget(nextUrl);
+          const unwrappedNext = isAllowedSupplierUrl(rawUnwrappedNext)
+            ? rawUnwrappedNext
+            : nextUrl;
 
           // Check if the redirected URL has TikTok `og_info`
           const hopTikTok = extractFromTikTokUrlParams(unwrappedNext);
@@ -712,7 +801,7 @@ export async function POST(req: Request) {
         finalUrl = bestProductUrl;
       } else {
         const lookedUp = await lookupShopeeByItemId(slugAnalysis.shopeeItemId);
-        if (lookedUp.canonicalUrl) {
+        if (lookedUp.canonicalUrl && isAllowedSupplierUrl(lookedUp.canonicalUrl)) {
           bestProductUrl = lookedUp.canonicalUrl;
           finalUrl = lookedUp.canonicalUrl;
         }
@@ -730,7 +819,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Fetch HTML using Social Preview Bot User-Agent (WhatsApp / Facebook External Hit)
-    if (finalUrl && finalUrl.startsWith('http')) {
+    if (finalUrl && isAllowedSupplierUrl(finalUrl)) {
       const userAgents = [
         'WhatsApp/2.23.20.0 A',
         'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
@@ -740,22 +829,14 @@ export async function POST(req: Request) {
         if (suggestedName && suggestedImages.length > 0 && detectedCost && suggestedDescription) break;
 
         try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 4500);
-          const response = await fetch(finalUrl, {
-            method: 'GET',
-            redirect: 'follow',
-            headers: {
-              'User-Agent': ua,
-              Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8',
-            },
-            signal: controller.signal,
-          });
-          clearTimeout(timeout);
+          const fetched = await fetchAllowedSupplierHtml(finalUrl, ua);
+          if (!fetched) continue;
 
-          if (response.url) {
-            const candidateUrl = unwrapRedirectTarget(response.url);
+          if (fetched.finalUrl) {
+            const candidateRaw = unwrapRedirectTarget(fetched.finalUrl);
+            const candidateUrl = isAllowedSupplierUrl(candidateRaw)
+              ? candidateRaw
+              : fetched.finalUrl;
             if (
               !candidateUrl.includes('/verify/') &&
               !candidateUrl.includes('/buyer/login') &&
@@ -766,8 +847,8 @@ export async function POST(req: Request) {
             }
           }
 
-          if (response.ok) {
-            const html = await response.text();
+          if (fetched.ok) {
+            const html = fetched.html;
 
             // 1A. Product JSON-LD extraction (strictly @type: Product)
             const ld = extractFromJsonLd(html);
