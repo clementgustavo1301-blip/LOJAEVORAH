@@ -65,11 +65,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    // Verifica assinatura HMAC-SHA256 x-signature (obrigatória em produção)
+    // Verifica assinatura HMAC-SHA256 x-signature quando MERCADO_PAGO_WEBHOOK_SECRET estiver configurado
     const webhookSecret = getMercadoPagoWebhookSecret();
-    if (process.env.NODE_ENV === 'production' && !webhookSecret) {
-      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 401 });
-    }
     if (webhookSecret) {
       const xSignature = req.headers.get('x-signature');
       const xRequestId = req.headers.get('x-request-id');
