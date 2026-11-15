@@ -84,22 +84,29 @@ export function CheckoutOrderConfirmation({
   const methodBadge =
     orderConfirmed.paymentMethod === 'PIX' ? 'PIX • 5% OFF' : 'CARTÃO DE CRÉDITO';
 
+  const outerLayoutClass = isPendingPix
+    ? 'max-w-2xl mx-auto space-y-6'
+    : 'grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start';
+
+  const mainSectionColClass = isPendingPix ? '' : 'lg:col-span-7';
+  const asideColClass = isPendingPix ? '' : 'lg:col-span-5';
+
   return (
     <MotionConfig reducedMotion="user">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+      <div className={outerLayoutClass}>
         {/* Main Editorial Pedestal: Payment Status & PIX */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          className="lg:col-span-7 bg-white border border-brand-border relative"
+          className={`${mainSectionColClass} bg-white border border-brand-border relative`.trim()}
           aria-labelledby="checkout-order-heading"
         >
           <div className={`h-[3px] w-full ${topBarClass}`} />
 
           {/* Header strip: status + order code + anchor total */}
-          <div className="p-6 sm:p-8 border-b border-brand-border">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className={isPendingPix ? 'p-4 sm:px-7 sm:py-4 border-b border-brand-border' : 'p-6 sm:p-8 border-b border-brand-border'}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
               {isPaid ? (
                 <div className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-800">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" strokeWidth={1.75} />
@@ -129,29 +136,47 @@ export function CheckoutOrderConfirmation({
               </span>
             </div>
 
-            <div className="mt-5 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-              <div className="space-y-1.5 min-w-0">
+            <div
+              className={
+                isPendingPix
+                  ? 'mt-3 flex items-end justify-between gap-3'
+                  : 'mt-5 flex flex-col sm:flex-row sm:items-end justify-between gap-4'
+              }
+            >
+              <div className="space-y-1 min-w-0">
                 <h2
                   id="checkout-order-heading"
-                  className="font-serif text-2xl sm:text-3xl xl:text-[34px] font-medium tracking-tight text-brand-text leading-[1.1] [font-variant-numeric:lining-nums_tabular-nums]"
+                  className={
+                    isPendingPix
+                      ? 'font-serif text-xl sm:text-2xl xl:text-[30px] font-medium tracking-tight text-brand-text leading-[1.1] [font-variant-numeric:lining-nums_tabular-nums]'
+                      : 'font-serif text-2xl sm:text-3xl xl:text-[34px] font-medium tracking-tight text-brand-text leading-[1.1] [font-variant-numeric:lining-nums_tabular-nums]'
+                  }
                 >
                   Pedido{' '}
                   <span className="whitespace-nowrap">#{orderConfirmed.orderNumber}</span>
                 </h2>
-                <p className="text-xs sm:text-sm text-brand-textMuted leading-relaxed break-words">
-                  Enviamos os detalhes da compra para{' '}
-                  <strong className="font-medium text-brand-text">
-                    {orderConfirmed.customerEmail}
-                  </strong>
-                  .
+                <p className="text-xs text-brand-textMuted leading-relaxed truncate">
+                  {orderConfirmed.customerEmail}
                 </p>
               </div>
 
-              <div className="sm:text-right shrink-0 border-t sm:border-t-0 sm:border-l border-brand-border pt-3 sm:pt-0 sm:pl-6">
+              <div
+                className={
+                  isPendingPix
+                    ? 'text-right shrink-0 border-l border-brand-border pl-3 sm:pl-6'
+                    : 'sm:text-right shrink-0 border-t sm:border-t-0 sm:border-l border-brand-border pt-3 sm:pt-0 sm:pl-6'
+                }
+              >
                 <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-textMuted">
-                  {isPaid ? 'Total pago' : 'Valor do pedido'}
+                  {isPaid ? 'Total pago' : 'Valor via PIX'}
                 </span>
-                <span className="block font-serif text-3xl font-medium text-brand-text [font-variant-numeric:lining-nums_tabular-nums] leading-none mt-1 whitespace-nowrap">
+                <span
+                  className={
+                    isPendingPix
+                      ? 'block font-serif text-2xl sm:text-3xl font-medium text-brand-text [font-variant-numeric:lining-nums_tabular-nums] leading-none mt-1 whitespace-nowrap'
+                      : 'block font-serif text-3xl font-medium text-brand-text [font-variant-numeric:lining-nums_tabular-nums] leading-none mt-1 whitespace-nowrap'
+                  }
+                >
                   R$ {formatBRL(orderConfirmed.total)}
                 </span>
               </div>
@@ -159,7 +184,7 @@ export function CheckoutOrderConfirmation({
           </div>
 
           {/* Dynamic Body */}
-          <div className="p-6 sm:p-8 space-y-6">
+          <div className={isPendingPix ? 'p-4 sm:p-6 space-y-5' : 'p-6 sm:p-8 space-y-6'}>
             {isPaid && (
               <div className="p-5 sm:p-6 bg-brand-background border border-brand-border border-l-2 border-l-emerald-700 flex items-start gap-4">
                 <div className="w-9 h-9 bg-emerald-700 text-white flex items-center justify-center shrink-0">
@@ -199,24 +224,33 @@ export function CheckoutOrderConfirmation({
 
             {isPendingPix && (
               <>
-                {/* QR Pedestal + 3-Step Guide */}
-                <div className="grid grid-cols-1 sm:grid-cols-[204px_1fr] gap-6 sm:gap-7 items-center">
-                  <div className="w-48 h-48 sm:w-[204px] sm:h-[204px] mx-auto sm:mx-0 bg-brand-background border border-brand-border p-3.5 relative flex items-center justify-center">
+                {/* Centered QR Code Hero Pedestal */}
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="max-w-md space-y-1">
+                    <span className="inline-block text-[10px] font-semibold uppercase tracking-[0.22em] text-brand-gold">
+                      Pagamento instantâneo
+                    </span>
+                    <h3 className="font-serif text-xl sm:text-2xl font-medium text-brand-text leading-tight">
+                      Escaneie o QR Code para pagar
+                    </h3>
+                  </div>
+
+                  <div className="w-48 h-48 sm:w-52 sm:h-52 mx-auto bg-brand-background border border-brand-border p-3 relative flex items-center justify-center shadow-[0_12px_32px_-16px_rgba(10,10,10,0.14)]">
                     <span
                       aria-hidden="true"
-                      className="pointer-events-none absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-brand-gold"
+                      className="pointer-events-none absolute top-0 left-0 w-3.5 h-3.5 border-t-2 border-l-2 border-brand-gold"
                     />
                     <span
                       aria-hidden="true"
-                      className="pointer-events-none absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-brand-gold"
+                      className="pointer-events-none absolute top-0 right-0 w-3.5 h-3.5 border-t-2 border-r-2 border-brand-gold"
                     />
                     <span
                       aria-hidden="true"
-                      className="pointer-events-none absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-brand-gold"
+                      className="pointer-events-none absolute bottom-0 left-0 w-3.5 h-3.5 border-b-2 border-l-2 border-brand-gold"
                     />
                     <span
                       aria-hidden="true"
-                      className="pointer-events-none absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-brand-gold"
+                      className="pointer-events-none absolute bottom-0 right-0 w-3.5 h-3.5 border-b-2 border-r-2 border-brand-gold"
                     />
 
                     <div className="w-full h-full bg-white p-2 flex items-center justify-center overflow-hidden">
@@ -235,38 +269,6 @@ export function CheckoutOrderConfirmation({
                         </div>
                       )}
                     </div>
-                  </div>
-
-                  <div className="space-y-3.5 text-left">
-                    <div>
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-gold">
-                        Pagamento instantâneo
-                      </span>
-                      <h3 className="font-serif text-2xl font-medium text-brand-text leading-tight mt-1">
-                        Pague com QR Code ou Copia e Cola
-                      </h3>
-                    </div>
-
-                    <ol className="space-y-2.5 text-xs text-brand-textMuted leading-relaxed">
-                      <li className="flex items-start gap-2.5">
-                        <span className="font-mono text-[10px] font-semibold text-brand-text border border-brand-border bg-brand-background px-1.5 py-0.5 tabular-nums shrink-0">
-                          01
-                        </span>
-                        <span>Abra o aplicativo do seu banco e acesse a área PIX.</span>
-                      </li>
-                      <li className="flex items-start gap-2.5">
-                        <span className="font-mono text-[10px] font-semibold text-brand-text border border-brand-border bg-brand-background px-1.5 py-0.5 tabular-nums shrink-0">
-                          02
-                        </span>
-                        <span>Escaneie o QR Code ao lado ou utilize o código Copia e Cola abaixo.</span>
-                      </li>
-                      <li className="flex items-start gap-2.5">
-                        <span className="font-mono text-[10px] font-semibold text-brand-text border border-brand-border bg-brand-background px-1.5 py-0.5 tabular-nums shrink-0">
-                          03
-                        </span>
-                        <span>A confirmação é reconhecida automaticamente nesta tela.</span>
-                      </li>
-                    </ol>
                   </div>
                 </div>
 
@@ -312,6 +314,34 @@ export function CheckoutOrderConfirmation({
                     </button>
                   </div>
                 </div>
+
+                {/* 3-Step Payment Guide */}
+                <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs text-brand-textMuted leading-relaxed">
+                  {[
+                    {
+                      step: '01',
+                      text: 'Abra o app do seu banco e acesse a área PIX.',
+                    },
+                    {
+                      step: '02',
+                      text: 'Escaneie o QR Code acima ou cole o código copiado.',
+                    },
+                    {
+                      step: '03',
+                      text: 'A confirmação aparece automaticamente nesta tela.',
+                    },
+                  ].map((item) => (
+                    <li
+                      key={item.step}
+                      className="flex items-start gap-2.5 p-3 bg-brand-background/70 border border-brand-border"
+                    >
+                      <span className="font-mono text-[10px] font-semibold text-brand-text border border-brand-border bg-white px-1.5 py-0.5 tabular-nums shrink-0">
+                        {item.step}
+                      </span>
+                      <span>{item.text}</span>
+                    </li>
+                  ))}
+                </ol>
 
                 {/* Sync & Manual Verify Strip */}
                 <div className="pt-4 border-t border-brand-border flex flex-wrap items-center justify-between gap-3">
@@ -380,12 +410,12 @@ export function CheckoutOrderConfirmation({
           </div>
         </motion.section>
 
-        {/* Right Asymmetric Obsidian Receipt Ledger */}
+        {/* Right / Bottom Asymmetric Obsidian Receipt Ledger */}
         <motion.aside
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-          className="lg:col-span-5 bg-[#0A0A0A] text-[#FAF9F6] border border-[#0A0A0A] p-6 sm:p-7 space-y-5"
+          className={`${asideColClass} bg-[#0A0A0A] text-[#FAF9F6] border border-[#0A0A0A] p-6 sm:p-7 space-y-5`.trim()}
           aria-label="Comprovante do pedido"
         >
           <div className="flex items-center justify-between gap-3 pb-4 border-b border-white/15">
