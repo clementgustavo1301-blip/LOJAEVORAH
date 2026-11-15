@@ -123,7 +123,7 @@ export function HeroParallax() {
                 disablePictureInPicture
                 disableRemotePlayback
                 aria-hidden="true"
-                className="w-full h-full object-contain opacity-[0.36]"
+                className="w-full h-full object-contain opacity-[0.85] md:opacity-[0.36]"
               >
                 <source src="/brand/evorah-hero.webm" type="video/webm" />
                 <source src="/brand/evorah-hero.mp4" type="video/mp4" />
@@ -133,9 +133,9 @@ export function HeroParallax() {
         </div>
       </div>
 
-      {/* Véu atmosférico sutil escurecendo suavemente a animação para manter tom discreto e luxuoso */}
+      {/* Véu atmosférico no desktop para manter a animação mais discreta e escura (no celular fica nítida) */}
       <div
-        className="absolute inset-0 bg-gradient-to-r from-[#000000]/45 via-[#000000]/18 via-40% to-transparent pointer-events-none z-[7]"
+        className="hidden md:block absolute inset-0 bg-gradient-to-r from-[#000000]/45 via-[#000000]/18 via-40% to-transparent pointer-events-none z-[7]"
         aria-hidden="true"
       />
 
