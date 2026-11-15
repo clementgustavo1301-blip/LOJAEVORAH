@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { getStoredProductsSnapshot } from '@/lib/api';
+import { getStoredProductsSnapshot, matchesCategoryFilter } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { ProductCard } from '@/components/product/product-card';
 import { Category, FinishType, Product } from '@/types';
@@ -12,6 +12,13 @@ import { FINISH_DETAILS } from '@/components/ui/swatch-selector';
 interface ProductsCatalogClientProps {
   initialProducts: Product[];
   categories: Category[];
+  initialFilters?: {
+    category?: string;
+    finish?: FinishType | '';
+    search?: string;
+    bestSeller?: boolean;
+    isNew?: boolean;
+  };
 }
 
 function SearchParamsSync({
@@ -42,13 +49,14 @@ function SearchParamsSync({
 export function ProductsCatalogClient({
   initialProducts,
   categories,
+  initialFilters,
 }: ProductsCatalogClientProps) {
   const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [selectedFinish, setSelectedFinish] = useState<string>('');
-  const [searchFilter, setSearchFilter] = useState<string>('');
-  const [onlyBestSellers, setOnlyBestSellers] = useState<boolean>(false);
-  const [onlyNew, setOnlyNew] = useState<boolean>(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialFilters?.category || '');
+  const [selectedFinish, setSelectedFinish] = useState<string>(initialFilters?.finish || '');
+  const [searchFilter, setSearchFilter] = useState<string>(initialFilters?.search || '');
+  const [onlyBestSellers, setOnlyBestSellers] = useState<boolean>(Boolean(initialFilters?.bestSeller));
+  const [onlyNew, setOnlyNew] = useState<boolean>(Boolean(initialFilters?.isNew));
   const [sortBy, setSortBy] = useState<string>('featured');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
@@ -84,11 +92,7 @@ export function ProductsCatalogClient({
     let list = [...products];
 
     if (selectedCategory) {
-      list = list.filter(
-        (p) =>
-          p.categoryId === `cat-${selectedCategory}` ||
-          p.slug.includes(selectedCategory)
-      );
+      list = list.filter((p) => matchesCategoryFilter(p, selectedCategory));
     }
 
     if (selectedFinish) {
@@ -301,8 +305,8 @@ export function ProductsCatalogClient({
                     <span className="text-[11px] text-brand-textMuted tabular-nums">
                       (
                       {
-                        products.filter(
-                          (p) => p.categoryId === `cat-${cat.slug}`
+                        products.filter((p) =>
+                          matchesCategoryFilter(p, cat.slug)
                         ).length
                       }
                       )

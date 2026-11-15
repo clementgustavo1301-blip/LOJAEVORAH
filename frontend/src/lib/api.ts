@@ -14,7 +14,7 @@ import { isSupabaseConfigured } from './supabase/client';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
-const LOCAL_PRODUCTS_KEY = 'inox_catalog_products_v3';
+const LOCAL_PRODUCTS_KEY = 'inox_catalog_products_v4';
 const LOCAL_ORDERS_KEY = 'inox_orders_fulfillment_v3';
 
 export const CATEGORY_LOCAL_IMAGE_MAP: Record<string, string> = {
@@ -44,172 +44,11 @@ export const FALLBACK_CATEGORIES: Category[] = [
   { id: 'cat-acessorios', name: 'Acessórios', slug: 'acessorios', description: 'Acessórios unissex', imageUrl: '/images/chain-gold-rolo.webp', _count: { products: 0 } },
 ];
 
-export const FALLBACK_PRODUCTS: Product[] = [
-  {
-    id: 'prod-corrente-grumet-2mm',
-    name: 'Corrente Grumet Masculina 2 mm',
-    slug: 'corrente-grumet-masculina-2mm',
-    description: 'Corrente Grumet fina 2 mm confeccionada em Prata 925 legítima. Elos diamantados precisos com brilho espelhado, resistente à água e suor. Fecho boia reforçado.',
-    specifications: 'Material: Prata 925 | Espessura: 2 mm | Fecho: Redondo Boia | Peso médio: 8,4g | Comprimento: 60 cm.',
-    careInstructions: 'Lavar com água morna e sabão neutro. Secar com flanela macia.',
-    material: 'Prata 925',
-    price: 348.0,
-    promotionalPrice: 179.0,
-    rating: 4.94,
-    reviewsCount: 683,
-    isNew: false,
-    isBestSeller: true,
-    isFeatured: true,
-    availableFinishes: ['silver'],
-    availableSizes: ['50cm', '60cm', '70cm'],
-    images: ['/images/chain-grumet.webp', '/images/chain-rope.webp'],
-    categoryId: 'cat-correntes',
-  },
-  {
-    id: 'prod-corrente-grumet-6mm',
-    name: 'Corrente Grumet Diamond Cut 6 mm',
-    slug: 'corrente-grumet-diamond-cut-6mm',
-    description: 'Corrente em aço inoxidável 316L com elos Grumet chanfrados com corte diamantado. Brilho espelhado que reflete a luz com precisão geométrica. Fecho gaveta duplo.',
-    specifications: 'Material: Aço Cirúrgico 316L | Espessura: 6 mm | Fecho: Gaveta duplo | Peso médio: 48g | À prova d’água.',
-    careInstructions: 'Lavar com água morna e sabão neutro.',
-    material: 'Aço Cirúrgico 316L',
-    price: 298.0,
-    promotionalPrice: 159.9,
-    rating: 4.9,
-    reviewsCount: 142,
-    isNew: false,
-    isBestSeller: true,
-    isFeatured: true,
-    availableFinishes: ['silver', 'gold', 'black'],
-    availableSizes: ['50cm', '60cm', '70cm'],
-    images: ['/images/chain-grumet.webp', '/images/chain-rope.webp'],
-    categoryId: 'cat-correntes',
-  },
-  {
-    id: 'prod-anel-monolitico-quadrado',
-    name: 'Anel Monolítico Quadrado Chanfrado',
-    slug: 'anel-monolitico-quadrado-chanfrado',
-    description: 'Anel de topo reto geométrico, forjado em bloco maciço de Prata 925. Perfil anatômico interno para conforto superior durante o dia inteiro.',
-    specifications: 'Material: Prata 925 | Largura do topo: 14 mm | Anatômico.',
-    careInstructions: 'Armazenar em estojo seco.',
-    material: 'Prata 925',
-    price: 258.0,
-    promotionalPrice: 129.9,
-    rating: 4.88,
-    reviewsCount: 96,
-    isNew: true,
-    isBestSeller: true,
-    isFeatured: true,
-    availableFinishes: ['silver', 'black', 'gold'],
-    availableSizes: ['18', '20', '22', '24', '26'],
-    images: ['/images/ring-square.webp', '/images/ring-black.webp'],
-    categoryId: 'cat-aneis',
-  },
-  {
-    id: 'prod-pulseira-grumet-5mm',
-    name: 'Pulseira Grumet 5 mm Fecho Gaveta',
-    slug: 'pulseira-grumet-5mm-fecho-gaveta',
-    description: 'Pulseira em Aço Cirúrgico 316L com elos Grumet maciços e fecho de segurança tipo gaveta. Resistente a maresia, suor e piscina.',
-    specifications: 'Material: Aço Cirúrgico 316L | Espessura: 5 mm | Fecho: Gaveta com trava.',
-    careInstructions: 'Lavar normalmente com sabão neutro.',
-    material: 'Aço Cirúrgico 316L',
-    price: 278.0,
-    promotionalPrice: 139.0,
-    rating: 4.96,
-    reviewsCount: 312,
-    isNew: false,
-    isBestSeller: true,
-    isFeatured: true,
-    availableFinishes: ['silver', 'gold'],
-    availableSizes: ['18cm', '20cm', '22cm'],
-    images: ['/images/bracelet-curb.webp'],
-    categoryId: 'cat-pulseiras',
-  },
-  {
-    id: 'prod-pingente-cruz-chanfrada',
-    name: 'Pingente Cruz Minimalista Chanfrada',
-    slug: 'pingente-cruz-minimalista-chanfrada',
-    description: 'Design escultural contemporâneo de proporções equilibradas em Prata 925. Arestas chanfradas lapidadas à laser.',
-    specifications: 'Material: Prata 925 | Altura: 32 mm | Largura: 18 mm.',
-    careInstructions: 'Secar com flanela mágica.',
-    material: 'Prata 925',
-    price: 178.0,
-    promotionalPrice: 89.9,
-    rating: 4.92,
-    reviewsCount: 184,
-    isNew: false,
-    isBestSeller: true,
-    isFeatured: true,
-    availableFinishes: ['silver', 'gold', 'black'],
-    availableSizes: ['Tamanho Único'],
-    images: ['/images/pendant-cross.webp'],
-    categoryId: 'cat-pingentes',
-  },
-  {
-    id: 'prod-brinco-argola-articulada',
-    name: 'Brinco Argola Articulada Click 14 mm',
-    slug: 'brinco-argola-articulada-click-14mm',
-    description: 'Par de argolas em perfil quadrado minimalista com fecho click articulado em Aço Cirúrgico 316L hipoalergênico.',
-    specifications: 'Material: Aço Cirúrgico 316L | Diâmetro externo: 14 mm | Espessura: 2.5 mm.',
-    careInstructions: 'Uso contínuo seguro.',
-    material: 'Aço Cirúrgico 316L',
-    price: 138.0,
-    promotionalPrice: 69.9,
-    rating: 4.98,
-    reviewsCount: 228,
-    isNew: true,
-    isBestSeller: true,
-    isFeatured: true,
-    availableFinishes: ['silver', 'black', 'gold'],
-    availableSizes: ['12mm', '14mm', '16mm'],
-    images: ['/images/earrings-hoops.webp'],
-    categoryId: 'cat-brincos',
-  },
-  {
-    id: 'prod-cordao-baiano-trancado',
-    name: 'Cordão Baiano Trançado 3 mm',
-    slug: 'cordao-baiano-trancado-3mm',
-    description: 'Cordão com trança espiral torcida em Prata 925 com acabamento premium e fecho lagosta reforçado.',
-    specifications: 'Material: Prata 925 | Espessura: 3 mm | Fecho: Lagosta.',
-    careInstructions: 'Limpar com água morna e secar bem.',
-    material: 'Prata 925',
-    price: 338.0,
-    promotionalPrice: 169.0,
-    rating: 4.95,
-    reviewsCount: 415,
-    isNew: true,
-    isBestSeller: true,
-    isFeatured: true,
-    availableFinishes: ['silver', 'gold'],
-    availableSizes: ['50cm', '60cm'],
-    images: ['/images/chain-rope.webp', '/images/chain-gold-rolo.webp'],
-    categoryId: 'cat-cordoes',
-  },
-  {
-    id: 'prod-corrente-elo-portugues',
-    name: 'Corrente Elo Português Circular 4 mm',
-    slug: 'corrente-elo-portugues-circular-4mm',
-    description: 'Elos redondos entrelaçados em Aço Cirúrgico 316L polido. Toque macio e caimento fluido para composições.',
-    specifications: 'Material: Aço Cirúrgico 316L | Espessura: 4 mm | Fecho: Lagosta reforçado.',
-    careInstructions: 'À prova d’água e maresia.',
-    material: 'Aço Cirúrgico 316L',
-    price: 298.0,
-    promotionalPrice: 149.0,
-    rating: 4.88,
-    reviewsCount: 78,
-    isNew: false,
-    isBestSeller: false,
-    isFeatured: true,
-    availableFinishes: ['silver', 'gold'],
-    availableSizes: ['45cm', '50cm', '60cm'],
-    images: ['/images/chain-gold-rolo.webp'],
-    categoryId: 'cat-correntes',
-  },
-];
+export const FALLBACK_PRODUCTS: Product[] = [];
 
-// --- Local Persistence Helpers (for instant sync with or without Supabase) ---
+// --- Local Persistence Helpers (browser cache strictly for synced DB products) ---
 function getStoredProducts(): Product[] {
-  if (typeof window === 'undefined') return FALLBACK_PRODUCTS;
+  if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(LOCAL_PRODUCTS_KEY);
     if (raw) {
@@ -219,7 +58,7 @@ function getStoredProducts(): Product[] {
   } catch {
     // ignore storage errors
   }
-  return FALLBACK_PRODUCTS;
+  return [];
 }
 
 function saveStoredProducts(list: Product[]) {
@@ -490,6 +329,16 @@ export async function fetchCategories(): Promise<Category[]> {
   return FALLBACK_CATEGORIES;
 }
 
+export function matchesCategoryFilter(product: Product, categoryFilter: string): boolean {
+  const normalized = categoryFilter.trim().toLowerCase();
+  if (!normalized) return true;
+  return (
+    product.categoryId?.toLowerCase() === `cat-${normalized}` ||
+    product.categoryId?.toLowerCase() === normalized ||
+    product.category?.slug?.toLowerCase() === normalized
+  );
+}
+
 function filterAndSortProducts(
   source: Product[],
   params?: {
@@ -507,13 +356,7 @@ function filterAndSortProducts(
     result = result.filter(p => p.isFeatured);
   }
   if (params?.category) {
-    result = result.filter(
-      p =>
-        p.categoryId === `cat-${params.category}` ||
-        p.categoryId === params.category ||
-        p.category?.slug === params.category ||
-        p.slug.includes(params.category!)
-    );
+    result = result.filter(p => matchesCategoryFilter(p, params.category!));
   }
   if (params?.finish) {
     result = result.filter(p => p.availableFinishes.includes(params.finish as FinishType));
@@ -556,7 +399,7 @@ export async function fetchProducts(params?: {
   const useCache = !params?.fresh && (!isServer || !isSupabaseConfigured());
   if (useCache) {
     const cached = serverCache.get('products') as Product[] | undefined;
-    if (cached && cached.length > 0) {
+    if (cached !== undefined) {
       return filterAndSortProducts(cached, params);
     }
   }
@@ -568,7 +411,7 @@ export async function fetchProducts(params?: {
           .from('products')
           .select('*, category:categories(*)')
           .order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mapped = data.map(mapProduct);
           if (!isServer) {
             serverCache.set('products', mapped);
@@ -1115,6 +958,10 @@ export async function updateProductSupplier(
   data: {
     name?: string;
     description?: string;
+    categoryId?: string;
+    isNew?: boolean;
+    isBestSeller?: boolean;
+    isFeatured?: boolean;
     supplierName?: string;
     supplierUrl?: string;
     supplierCost?: number;
@@ -1145,6 +992,10 @@ export async function updateProductSupplier(
       ...prod,
       name: data.name !== undefined ? data.name : prod.name,
       description: data.description !== undefined ? data.description : prod.description,
+      categoryId: data.categoryId !== undefined ? data.categoryId : prod.categoryId,
+      isNew: data.isNew !== undefined ? data.isNew : prod.isNew,
+      isBestSeller: data.isBestSeller !== undefined ? data.isBestSeller : prod.isBestSeller,
+      isFeatured: data.isFeatured !== undefined ? data.isFeatured : prod.isFeatured,
       supplierName: nextSupplier,
       supplierUrl: nextUrl,
       supplierCost: data.supplierCost !== undefined ? data.supplierCost : prod.supplierCost,
@@ -1165,6 +1016,9 @@ export async function createProductFromImport(payload: {
   name: string;
   description?: string;
   categoryId: string;
+  isNew?: boolean;
+  isBestSeller?: boolean;
+  isFeatured?: boolean;
   material?: string;
   supplierName: string;
   supplierUrl: string;
@@ -1200,9 +1054,9 @@ export async function createProductFromImport(payload: {
     promotionalPrice: payload.promotionalPrice ?? null,
     rating: 5.0,
     reviewsCount: 12,
-    isNew: true,
-    isBestSeller: true,
-    isFeatured: true,
+    isNew: payload.isNew ?? true,
+    isBestSeller: payload.isBestSeller ?? true,
+    isFeatured: payload.isFeatured ?? true,
     categoryId: payload.categoryId || 'cat-correntes',
     availableFinishes: payload.availableFinishes?.length ? payload.availableFinishes : ['silver', 'gold', 'black'],
     availableSizes: payload.availableSizes?.length ? payload.availableSizes : ['Tamanho Único'],

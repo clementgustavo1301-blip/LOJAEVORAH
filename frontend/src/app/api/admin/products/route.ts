@@ -54,6 +54,18 @@ export async function PATCH(req: NextRequest) {
         (img: unknown): img is string => typeof img === 'string' && img.trim().length > 0
       );
     }
+    if (typeof body.categoryId === 'string' && body.categoryId.trim()) {
+      updatePayload.category_id = body.categoryId.trim();
+    }
+    if (typeof body.isNew === 'boolean') {
+      updatePayload.is_new = body.isNew;
+    }
+    if (typeof body.isBestSeller === 'boolean') {
+      updatePayload.is_best_seller = body.isBestSeller;
+    }
+    if (typeof body.isFeatured === 'boolean') {
+      updatePayload.is_featured = body.isFeatured;
+    }
 
     if (Object.keys(updatePayload).length === 0) {
       return NextResponse.json({ error: 'Nenhum campo válido enviado.' }, { status: 400 });

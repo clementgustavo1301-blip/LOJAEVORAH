@@ -22,7 +22,7 @@ const CATEGORIES: { name: string; slug: CategoryIconName }[] = [
 export default async function HomePage() {
   const allProducts = await fetchProducts();
   const bestSellers = allProducts.filter((p) => p.isBestSeller).slice(0, 4);
-  const newArrivals = allProducts.slice(0, 4);
+  const newArrivals = allProducts.filter((p) => p.isNew).slice(0, 4);
 
   return (
     <div className="flex flex-col w-full bg-brand-background text-brand-text">
@@ -119,15 +119,23 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-10 sm:gap-x-7">
-            {bestSellers.map((product, index) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                priority={index < 2}
-              />
-            ))}
-          </div>
+          {bestSellers.length > 0 ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-10 sm:gap-x-7">
+              {bestSellers.map((product, index) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  priority={index < 2}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="py-12 border border-brand-border bg-brand-background/50 text-center">
+              <p className="text-xs text-brand-textMuted">
+                Em breve novas peças disponíveis nesta seleção.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -185,11 +193,19 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-10 sm:gap-x-7">
-            {newArrivals.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          {newArrivals.length > 0 ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-10 sm:gap-x-7">
+              {newArrivals.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          ) : (
+            <div className="py-12 border border-brand-border bg-brand-background/50 text-center">
+              <p className="text-xs text-brand-textMuted">
+                Em breve novos lançamentos cadastrados na vitrine.
+              </p>
+            </div>
+          )}
         </div>
       </section>
     </div>

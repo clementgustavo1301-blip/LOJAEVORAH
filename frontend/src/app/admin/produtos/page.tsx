@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   fetchProducts,
+  fetchCategories,
   getStoredProductsSnapshot,
   updateProductSupplier,
   createProductFromImport,
@@ -12,7 +13,7 @@ import {
   detectSupplierPlatform,
   FALLBACK_CATEGORIES,
 } from '@/lib/api';
-import { Product, FinishType, SupplierPlatform } from '@/types';
+import { Category, Product, FinishType, SupplierPlatform } from '@/types';
 import {
   Package,
   Store,
@@ -38,9 +39,125 @@ function parseCurrencyInput(raw: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? Math.round(value * 100) / 100 : fallback;
 }
 
+function ProductPlacementFields({
+  categories,
+  categoryId,
+  onCategoryChange,
+  isBestSeller,
+  onToggleBestSeller,
+  isNew,
+  onToggleNew,
+  isFeatured,
+  onToggleFeatured,
+}: {
+  categories: Category[];
+  categoryId: string;
+  onCategoryChange: (id: string) => void;
+  isBestSeller: boolean;
+  onToggleBestSeller: () => void;
+  isNew: boolean;
+  onToggleNew: () => void;
+  isFeatured: boolean;
+  onToggleFeatured: () => void;
+}) {
+  const sectionOptions = [
+    {
+      id: 'bestSeller',
+      label: 'Mais Vendidos',
+      hint: 'Seção Peças Mais Desejadas',
+      checked: isBestSeller,
+      onToggle: onToggleBestSeller,
+    },
+    {
+      id: 'isNew',
+      label: 'Lançamentos',
+      hint: 'Seção Lançamentos Recentes',
+      checked: isNew,
+      onToggle: onToggleNew,
+    },
+    {
+      id: 'isFeatured',
+      label: 'Destaque',
+      hint: 'Curadoria do catálogo',
+      checked: isFeatured,
+      onToggle: onToggleFeatured,
+    },
+  ];
+
+  return (
+    <div className="space-y-3 rounded-sm border border-brand-border bg-brand-background/50 p-3">
+      <div>
+        <label className="text-xs font-medium text-brand-text block mb-1.5">
+          Categoria dentro do site
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {categories.map((cat) => {
+            const active = categoryId === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => onCategoryChange(cat.id)}
+                className={`px-2.5 h-8 rounded-sm border text-[11px] font-medium transition-colors flex items-center gap-1 ${
+                  active
+                    ? 'bg-brand-text text-white border-brand-text'
+                    : 'bg-white text-brand-textMuted border-brand-border hover:border-brand-text hover:text-brand-text'
+                }`}
+              >
+                {active && <Check className="w-3 h-3" />}
+                <span>{cat.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="pt-2 border-t border-brand-border">
+        <label className="text-xs font-medium text-brand-text block mb-1.5">
+          Vitrines / Seções da loja
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {sectionOptions.map((sec) => (
+            <button
+              key={sec.id}
+              type="button"
+              onClick={sec.onToggle}
+              aria-pressed={sec.checked}
+              className={`p-2 rounded-sm border text-left transition-colors flex items-start gap-2 ${
+                sec.checked
+                  ? 'bg-white border-brand-text text-brand-text'
+                  : 'bg-transparent border-brand-border text-brand-textMuted hover:border-brand-text/60'
+              }`}
+            >
+              <span
+                className={`mt-0.5 w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 ${
+                  sec.checked
+                    ? 'bg-brand-text border-brand-text text-white'
+                    : 'bg-white border-brand-border'
+                }`}
+              >
+                {sec.checked && <Check className="w-3 h-3" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] font-semibold leading-tight">
+                  {sec.label}
+                </span>
+                <span className="block text-[10px] text-brand-textMuted leading-tight mt-0.5">
+                  {sec.hint}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminProdutosPage() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'ALL' | SupplierPlatform>('ALL');
@@ -61,6 +178,9 @@ export default function AdminProdutosPage() {
   const [importName, setImportName] = useState('');
   const [importDescription, setImportDescription] = useState('');
   const [importCategory, setImportCategory] = useState('cat-correntes');
+  const [importIsBestSeller, setImportIsBestSeller] = useState(true);
+  const [importIsNew, setImportIsNew] = useState(true);
+  const [importIsFeatured, setImportIsFeatured] = useState(true);
   const [importCost, setImportCost] = useState('29.90');
   const [importSalePrice, setImportSalePrice] = useState('129.90');
   const [importDeliveryDays, setImportDeliveryDays] = useState('4 a 8 dias úteis');
@@ -74,6 +194,10 @@ export default function AdminProdutosPage() {
   // Edição de produto existente
   const [editProductName, setEditProductName] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('cat-correntes');
+  const [editIsBestSeller, setEditIsBestSeller] = useState(true);
+  const [editIsNew, setEditIsNew] = useState(true);
+  const [editIsFeatured, setEditIsFeatured] = useState(true);
   const [supplierName, setSupplierName] = useState('');
   const [supplierUrl, setSupplierUrl] = useState('');
   const [supplierCost, setSupplierCost] = useState<string>('');
@@ -100,8 +224,12 @@ export default function AdminProdutosPage() {
   const loadProducts = async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
     try {
-      const data = await fetchProducts({ fresh: true });
+      const [data, cats] = await Promise.all([
+        fetchProducts({ fresh: true }),
+        fetchCategories().catch(() => FALLBACK_CATEGORIES),
+      ]);
       setProducts(data);
+      if (cats.length > 0) setCategories(cats);
     } finally {
       setLoading(false);
     }
@@ -281,6 +409,9 @@ export default function AdminProdutosPage() {
         supplierCost: costNum,
         images: cleanImgs.length > 0 ? cleanImgs : ['/images/chain-grumet.webp'],
         categoryId: importCategory,
+        isNew: importIsNew,
+        isBestSeller: importIsBestSeller,
+        isFeatured: importIsFeatured,
         supplierName: importSupplierName.trim() || 'Shopee Brasil',
         supplierUrl: importUrl.trim(),
         estimatedDeliveryDays: importDeliveryDays.trim() || '4 a 8 dias úteis',
@@ -297,6 +428,10 @@ export default function AdminProdutosPage() {
       setImportName('');
       setImportDescription('');
       setImportUrl('');
+      setImportCategory('cat-correntes');
+      setImportIsBestSeller(true);
+      setImportIsNew(true);
+      setImportIsFeatured(true);
       setExtractionFeedback(null);
       setPastedAdText('');
       setShowPasteHelper(false);
@@ -311,6 +446,10 @@ export default function AdminProdutosPage() {
     setSelectedProduct(p);
     setEditProductName(p.name);
     setEditDescription(p.description || '');
+    setEditCategoryId(p.categoryId || categories[0]?.id || 'cat-correntes');
+    setEditIsBestSeller(Boolean(p.isBestSeller));
+    setEditIsNew(Boolean(p.isNew));
+    setEditIsFeatured(Boolean(p.isFeatured));
     setSupplierName(p.supplierName || 'Shopee Brasil');
     setSupplierUrl(p.supplierUrl || '');
     setSupplierCost(p.supplierCost ? p.supplierCost.toFixed(2) : '25.00');
@@ -335,6 +474,10 @@ export default function AdminProdutosPage() {
       const persisted = await updateProductSupplier(selectedProduct.id, {
         name: editProductName.trim() || undefined,
         description: editDescription.trim() || undefined,
+        categoryId: editCategoryId,
+        isNew: editIsNew,
+        isBestSeller: editIsBestSeller,
+        isFeatured: editIsFeatured,
         supplierName: supplierName.trim(),
         supplierUrl: supplierUrl.trim(),
         supplierCost: costNum,
@@ -351,6 +494,11 @@ export default function AdminProdutosPage() {
                 ...item,
                 name: editProductName.trim() || item.name,
                 description: editDescription.trim() || item.description,
+                categoryId: editCategoryId,
+                category: categories.find((c) => c.id === editCategoryId) ?? item.category,
+                isNew: editIsNew,
+                isBestSeller: editIsBestSeller,
+                isFeatured: editIsFeatured,
                 price: priceNum,
                 promotionalPrice: null,
                 supplierName: supplierName.trim(),
@@ -408,8 +556,8 @@ export default function AdminProdutosPage() {
     return true;
   });
 
-  const parsedCost = parseFloat(importCost.replace(',', '.')) || 0;
-  const parsedSale = parseFloat(importSalePrice.replace(',', '.')) || 0;
+  const parsedCost = parseCurrencyInput(importCost, 0);
+  const parsedSale = parseCurrencyInput(importSalePrice, 0);
   const importProfit = Math.max(0, parsedSale - parsedCost);
   const importMarginPercent = parsedSale > 0 ? ((importProfit / parsedSale) * 100).toFixed(0) : '0';
 
@@ -585,8 +733,22 @@ export default function AdminProdutosPage() {
                             {p.name}
                           </h3>
                         </Link>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-brand-textMuted">
-                          <span>{p.category?.name || 'Aço 316L'}</span>
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-brand-textMuted">
+                          <span>
+                            {categories.find((c) => c.id === p.categoryId)?.name ||
+                              p.category?.name ||
+                              'Sem categoria'}
+                          </span>
+                          {p.isBestSeller && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium bg-brand-background border border-brand-border text-brand-text rounded-sm">
+                              Mais vendido
+                            </span>
+                          )}
+                          {p.isNew && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium bg-brand-background border border-brand-border text-brand-text rounded-sm">
+                              Lançamento
+                            </span>
+                          )}
                           {p.supplierName && (
                             <>
                               <span>•</span>
@@ -734,38 +896,31 @@ export default function AdminProdutosPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="text-xs font-medium text-brand-text block mb-1">
-                    Nome do Produto
-                  </label>
-                  <input
-                    type="text"
-                    value={importName}
-                    onChange={(e) => setImportName(e.target.value)}
-                    placeholder="Ex: Corrente Grumet 316L"
-                    className="w-full h-10 bg-white border border-brand-border rounded-sm px-3 text-xs text-brand-text focus:border-brand-text outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-brand-text block mb-1">
-                    Categoria
-                  </label>
-                  <select
-                    value={importCategory}
-                    onChange={(e) => setImportCategory(e.target.value)}
-                    className="w-full h-10 bg-white border border-brand-border rounded-sm px-2 text-xs text-brand-text focus:border-brand-text outline-none"
-                  >
-                    {FALLBACK_CATEGORIES.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="text-xs font-medium text-brand-text block mb-1">
+                  Nome do Produto
+                </label>
+                <input
+                  type="text"
+                  value={importName}
+                  onChange={(e) => setImportName(e.target.value)}
+                  placeholder="Ex: Corrente Grumet 316L"
+                  className="w-full h-10 bg-white border border-brand-border rounded-sm px-3 text-xs text-brand-text focus:border-brand-text outline-none"
+                  required
+                />
               </div>
+
+              <ProductPlacementFields
+                categories={categories}
+                categoryId={importCategory}
+                onCategoryChange={setImportCategory}
+                isBestSeller={importIsBestSeller}
+                onToggleBestSeller={() => setImportIsBestSeller((prev) => !prev)}
+                isNew={importIsNew}
+                onToggleNew={() => setImportIsNew((prev) => !prev)}
+                isFeatured={importIsFeatured}
+                onToggleFeatured={() => setImportIsFeatured((prev) => !prev)}
+              />
 
               <div>
                 <label className="text-xs font-medium text-brand-text block mb-1">
@@ -947,7 +1102,7 @@ export default function AdminProdutosPage() {
       {/* Modal 2: Editar Produto */}
       {selectedProduct && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded border border-brand-border max-w-lg w-full p-6 relative shadow-xl my-8">
+          <div className="bg-white rounded border border-brand-border max-w-xl w-full p-6 relative shadow-xl my-8 max-h-[90vh] overflow-y-auto">
             <button
               type="button"
               onClick={() => setSelectedProduct(null)}
@@ -977,6 +1132,18 @@ export default function AdminProdutosPage() {
                   required
                 />
               </div>
+
+              <ProductPlacementFields
+                categories={categories}
+                categoryId={editCategoryId}
+                onCategoryChange={setEditCategoryId}
+                isBestSeller={editIsBestSeller}
+                onToggleBestSeller={() => setEditIsBestSeller((prev) => !prev)}
+                isNew={editIsNew}
+                onToggleNew={() => setEditIsNew((prev) => !prev)}
+                isFeatured={editIsFeatured}
+                onToggleFeatured={() => setEditIsFeatured((prev) => !prev)}
+              />
 
               <div>
                 <label className="text-xs font-medium text-brand-text block mb-1">

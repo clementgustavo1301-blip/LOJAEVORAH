@@ -3,25 +3,25 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/cart-context';
-import { FALLBACK_PRODUCTS, fetchProducts, getStoredProductsSnapshot } from '@/lib/api';
+import { fetchProducts, getStoredProductsSnapshot } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
+import { Product } from '@/types';
 import { ProductCard } from '@/components/product/product-card';
 import { Heart, ArrowRight } from 'lucide-react';
 
 export default function FavoritosPage() {
   const { wishlist } = useCart();
-  const [catalog, setCatalog] = useState(FALLBACK_PRODUCTS);
+  const [catalog, setCatalog] = useState<Product[]>([]);
 
   useEffect(() => {
     const stored = getStoredProductsSnapshot();
-    const base = stored.length > 0 ? stored : FALLBACK_PRODUCTS;
     if (stored.length > 0) setCatalog(stored);
 
-    const missingWishlisted = wishlist.some((id) => !base.some((p) => p.id === id));
+    const missingWishlisted = wishlist.some((id) => !stored.some((p) => p.id === id));
     if (missingWishlisted || (wishlist.length > 0 && isSupabaseConfigured())) {
       let active = true;
       fetchProducts({ fresh: true }).then((remote) => {
-        if (active && remote.length > 0) {
+        if (active) {
           setCatalog(remote);
         }
       });

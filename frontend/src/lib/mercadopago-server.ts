@@ -35,16 +35,7 @@ export interface ServerOrderRecord {
   updatedAt: string;
 }
 
-const TRUSTED_PRODUCT_PRICES: Record<string, { name: string; price: number }> = {
-  'prod-corrente-grumet-2mm': { name: 'Corrente Grumet Masculina 2 mm', price: 179.0 },
-  'prod-corrente-grumet-6mm': { name: 'Corrente Grumet Diamond Cut 6 mm', price: 159.9 },
-  'prod-anel-monolitico-quadrado': { name: 'Anel Monolítico Quadrado Chanfrado', price: 129.9 },
-  'prod-pulseira-grumet-5mm': { name: 'Pulseira Grumet 5 mm Fecho Gaveta', price: 139.0 },
-  'prod-pingente-cruz-chanfrada': { name: 'Pingente Cruz Minimalista Chanfrada', price: 89.9 },
-  'prod-brinco-argola-articulada': { name: 'Brinco Argola Articulada Click 14 mm', price: 69.9 },
-  'prod-cordao-baiano-trancado': { name: 'Cordão Baiano Trançado 3 mm', price: 169.0 },
-  'prod-corrente-elo-portugues': { name: 'Corrente Elo Português Circular 4 mm', price: 149.0 },
-};
+const TRUSTED_PRODUCT_PRICES: Record<string, { name: string; price: number }> = {};
 
 const DEV_ORDERS_FILE = path.join(os.tmpdir(), 'evorah-dev-orders.json');
 
