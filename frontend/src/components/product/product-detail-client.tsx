@@ -156,11 +156,11 @@ export function ProductDetailClient({
   const heroImage = product.images[activeImageIndex] || product.images[0] || '/images/chain-grumet.webp';
 
   return (
-    <div className="w-full bg-brand-background min-h-screen py-6 sm:py-14 px-4 sm:px-8 lg:px-12 pb-24 sm:pb-14">
-      <div className="max-w-[1240px] mx-auto">
+    <div className="w-full bg-brand-background min-h-screen py-4 sm:py-6 px-4 sm:px-8 lg:px-12 pb-20 sm:pb-12">
+      <div className="max-w-[1300px] mx-auto">
         {/* Breadcrumb Minimalista */}
         <nav
-          className="text-[11px] uppercase tracking-[0.14em] text-brand-textMuted mb-5 sm:mb-8 flex items-center gap-2"
+          className="text-[11px] uppercase tracking-[0.14em] text-brand-textMuted mb-3 sm:mb-5 flex items-center gap-2"
           aria-label="Navegação estrutural"
         >
           <Link href="/" prefetch={true} className="hover:text-brand-text transition-colors">
@@ -179,24 +179,24 @@ export function ProductDetailClient({
         </nav>
 
         {/* Layout Principal */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 lg:gap-14 items-start mb-14 sm:mb-20">
-          {/* Galeria Editorial (Imagem principal primeiro no DOM para LCP imediato) */}
-          <div className="lg:col-span-7 flex flex-col sm:flex-row gap-3 sm:gap-4">
-            <div className="order-1 sm:order-2 relative aspect-[4/5] w-full bg-white border border-brand-border overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-7 lg:gap-9 items-start mb-12 sm:mb-16">
+          {/* Galeria Editorial (enquadramento compacto acima da dobra) */}
+          <div className="lg:col-span-6 lg:sticky lg:top-24 flex flex-col sm:flex-row gap-3 sm:gap-3.5">
+            <div className="order-1 sm:order-2 relative aspect-square w-full lg:max-h-[490px] bg-white border border-brand-border overflow-hidden">
               <Image
                 src={heroImage}
                 alt={product.name}
                 fill
                 priority
                 fetchPriority="high"
-                sizes="(max-width: 1024px) 100vw, 55vw"
-                className="object-contain p-4 sm:p-6"
+                sizes="(max-width: 1024px) 100vw, 48vw"
+                className="object-contain p-2 sm:p-3"
               />
               <button
                 type="button"
                 onClick={() => toggleWishlist(product.id)}
                 aria-label="Salvar nos favoritos"
-                className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 z-10 w-9 h-9 bg-white/90 border border-brand-border flex items-center justify-center text-brand-text hover:border-brand-text transition-colors"
+                className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 z-10 w-9 h-9 bg-white/90 border border-brand-border flex items-center justify-center text-brand-text hover:border-brand-text transition-colors"
               >
                 <Heart
                   className={`w-4 h-4 stroke-[1.5] ${
@@ -207,13 +207,13 @@ export function ProductDetailClient({
             </div>
 
             {product.images.length > 1 && (
-              <div className="order-2 sm:order-1 flex sm:flex-col gap-2.5 sm:gap-3 shrink-0 overflow-x-auto">
+              <div className="order-2 sm:order-1 flex sm:flex-col gap-2 sm:gap-2.5 shrink-0 overflow-x-auto">
                 {product.images.map((img, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => setActiveImageIndex(idx)}
-                    className={`relative w-16 h-20 bg-white border overflow-hidden transition-all shrink-0 ${
+                    className={`relative w-14 h-16 sm:w-16 sm:h-16 bg-white border overflow-hidden transition-all shrink-0 ${
                       activeImageIndex === idx
                         ? 'border-brand-text'
                         : 'border-brand-border opacity-60 hover:opacity-100'
@@ -233,14 +233,14 @@ export function ProductDetailClient({
             )}
           </div>
 
-          {/* Especificações e Compra (8px interno | 24px entre grupos) */}
-          <div className="lg:col-span-5 flex flex-col gap-6 bg-white p-5 sm:p-9 border border-brand-border">
+          {/* Especificações e Compra */}
+          <div className="lg:col-span-6 flex flex-col gap-3.5 sm:gap-4 bg-white p-4 sm:p-6 border border-brand-border">
             {/* Grupo 1: Material, Título e Avaliação */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               <span className="text-[10px] font-semibold text-brand-gold uppercase tracking-[0.2em]">
                 {product.material || 'Aço Cirúrgico 316L & Prata 925'}
               </span>
-              <h1 className="text-2xl sm:text-3xl font-serif font-normal text-brand-text leading-tight">
+              <h1 className="text-xl sm:text-2xl lg:text-[26px] font-serif font-normal text-brand-text leading-snug">
                 {product.name}
               </h1>
               <Rating
@@ -252,9 +252,9 @@ export function ProductDetailClient({
             </div>
 
             {/* Grupo 2: Preço, Parcelamento e Valor do Frete */}
-            <div className="py-6 border-y border-brand-border flex flex-col gap-2">
+            <div className="py-3 sm:py-3.5 border-y border-brand-border flex flex-col gap-1.5">
               <div className="flex flex-wrap items-baseline gap-2.5 tabular-nums">
-                <span className="text-2xl font-semibold text-brand-text">
+                <span className="text-xl sm:text-2xl font-semibold text-brand-text">
                   R$ {currentPrice.toFixed(2).replace('.', ',')}
                 </span>
                 {originalPrice && (
@@ -283,7 +283,7 @@ export function ProductDetailClient({
             </div>
 
             {/* Grupo 3: Seletor de Acabamento */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text">
                   Acabamento:{' '}
@@ -302,7 +302,7 @@ export function ProductDetailClient({
 
             {/* Grupo 4: Seletor de Tamanho */}
             {product.availableSizes.length > 0 && (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text">
                     Medida
@@ -322,7 +322,7 @@ export function ProductDetailClient({
                       key={sz}
                       type="button"
                       onClick={() => setSelectedSize(sz)}
-                      className={`h-10 px-4 text-xs font-medium border transition-colors tabular-nums ${
+                      className={`h-9 px-3.5 text-xs font-medium border transition-colors tabular-nums ${
                         selectedSize === sz
                           ? 'border-[#0A0A0A] bg-[#0A0A0A] text-white'
                           : 'border-brand-border bg-white text-brand-text hover:border-brand-text'
@@ -336,7 +336,7 @@ export function ProductDetailClient({
             )}
 
             {/* Grupo 5: Quantidade e CTAs */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text">
                   Quantidade
@@ -353,14 +353,14 @@ export function ProductDetailClient({
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className="h-12 bg-white border border-brand-text hover:bg-brand-background active:scale-[0.98] text-brand-text text-[11px] font-semibold uppercase tracking-[0.16em] transition-all"
+                  className="h-11 bg-white border border-brand-text hover:bg-brand-background active:scale-[0.98] text-brand-text text-[11px] font-semibold uppercase tracking-[0.16em] transition-all"
                 >
                   Adicionar à sacola
                 </button>
                 <button
                   type="button"
                   onClick={handleBuyNow}
-                  className="h-12 bg-[#0A0A0A] text-white hover:bg-brand-gold hover:text-[#0A0A0A] active:scale-[0.98] text-[11px] font-semibold uppercase tracking-[0.16em] transition-all"
+                  className="h-11 bg-[#0A0A0A] text-white hover:bg-brand-gold hover:text-[#0A0A0A] active:scale-[0.98] text-[11px] font-semibold uppercase tracking-[0.16em] transition-all"
                 >
                   Comprar agora
                 </button>

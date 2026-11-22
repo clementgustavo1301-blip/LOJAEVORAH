@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { fetchProducts } from '@/lib/api';
 import { ProductCard } from '@/components/product/product-card';
-import { HeroCarousel } from '@/components/home/hero-carousel';
+import { HeroStaticBanner, CollectionBannersGrid } from '@/components/home/hero-banners';
 import { CategoryIcon, CategoryIconName } from '@/components/home/category-icons';
 import { EDITORIAL_HAND_BLUR_DATA_URL } from '@/lib/media-placeholders';
 import { ArrowRight } from 'lucide-react';
@@ -26,10 +26,52 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col w-full bg-brand-background text-brand-text">
-      {/* 1. Hero Section: Carrossel de 3 Banners Fotográficos Full-Bleed */}
-      <HeroCarousel />
+      {/* 1. Hero Estático (Oferta de Final de Ano) + 3 Banners Estáticos das Coleções */}
+      <HeroStaticBanner />
+      <CollectionBannersGrid />
 
-      {/* 2. Pilares Arquitetônicos */}
+      {/* 2. Mais Vendidos (logo abaixo dos banners) */}
+      <section className="py-12 sm:py-16 px-6 sm:px-10 lg:px-12 border-b border-brand-border bg-white">
+        <div className="max-w-[1380px] mx-auto">
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-gold block mb-1">
+                Seleção Essencial
+              </span>
+              <h2 className="font-serif text-2xl sm:text-3xl font-normal text-brand-text tracking-tight">
+                Mais Vendidos
+              </h2>
+            </div>
+            <Link
+              href="/produtos?bestSeller=true"
+              className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text hover:text-brand-gold flex items-center gap-2 transition-colors"
+            >
+              <span>Ver seleção</span>
+              <ArrowRight className="w-3.5 h-3.5 stroke-[1.5]" />
+            </Link>
+          </div>
+
+          {bestSellers.length > 0 ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              {bestSellers.map((product, index) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  priority={index < 2}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="py-12 border border-brand-border bg-brand-background/50 text-center">
+              <p className="text-xs text-brand-textMuted">
+                Em breve novas peças disponíveis nesta seleção.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 3. Pilares Arquitetônicos */}
       <section className="border-b border-brand-border bg-white px-6 sm:px-10 lg:px-12 py-7">
         <div className="max-w-[1380px] mx-auto grid grid-cols-1 sm:grid-cols-2 gap-8 sm:gap-10 divide-y sm:divide-y-0 sm:divide-x divide-brand-border">
           <div className="sm:pr-8 pt-3 sm:pt-0 first:pt-0">
@@ -58,7 +100,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 3. Categorias */}
+      {/* 4. Categorias */}
       <section className="py-14 sm:py-18 px-6 sm:px-10 lg:px-12 border-b border-brand-border bg-brand-background">
         <div className="max-w-[1380px] mx-auto">
           <div className="flex items-end justify-between mb-8">
@@ -95,47 +137,6 @@ export default async function HomePage() {
               </Link>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* 4. Mais Vendidos */}
-      <section className="offscreen-section py-14 sm:py-20 px-6 sm:px-10 lg:px-12 border-b border-brand-border bg-white">
-        <div className="max-w-[1380px] mx-auto">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-gold block mb-1">
-                Seleção Essencial
-              </span>
-              <h2 className="font-serif text-2xl sm:text-3xl font-normal text-brand-text tracking-tight">
-                Peças Mais Desejadas
-              </h2>
-            </div>
-            <Link
-              href="/produtos?bestSeller=true"
-              className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text hover:text-brand-gold flex items-center gap-2 transition-colors"
-            >
-              <span>Ver seleção</span>
-              <ArrowRight className="w-3.5 h-3.5 stroke-[1.5]" />
-            </Link>
-          </div>
-
-          {bestSellers.length > 0 ? (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-              {bestSellers.map((product, index) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  priority={index < 2}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="py-12 border border-brand-border bg-brand-background/50 text-center">
-              <p className="text-xs text-brand-textMuted">
-                Em breve novas peças disponíveis nesta seleção.
-              </p>
-            </div>
-          )}
         </div>
       </section>
 

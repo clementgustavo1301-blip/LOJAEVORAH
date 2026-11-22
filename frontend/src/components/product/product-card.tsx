@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Product } from '@/types';
 import { useCart } from '@/context/cart-context';
 import { Rating } from '@/components/ui/rating';
-import { Heart, Plus, ShieldCheck, Truck } from 'lucide-react';
+import { Heart, Plus, Truck } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -140,8 +140,8 @@ export const ProductCard = memo(function ProductCard({
         </div>
       </div>
 
-      {/* Grupos de Informação (8px interno | 24px entre grupos) */}
-      <div className="p-3.5 sm:p-5 flex flex-col flex-1 gap-6 text-left">
+      {/* Grupos de Informação */}
+      <div className="p-3.5 sm:p-5 flex flex-col flex-1 gap-5 text-left">
         {/* Grupo 1: Material, Título e Avaliação */}
         <div className="flex flex-col gap-2">
           <span className="text-[10px] uppercase tracking-[0.14em] sm:tracking-[0.16em] text-brand-textMuted line-clamp-1">
@@ -166,7 +166,7 @@ export const ProductCard = memo(function ProductCard({
         </div>
 
         {/* Grupo 2: Preço, Parcelamento e Frete */}
-        <div className="flex flex-col gap-2">
+        <div className="mt-auto flex flex-col gap-2">
           <div className="flex flex-wrap items-baseline gap-2 tabular-nums">
             <span className="text-sm sm:text-base font-semibold text-brand-text">
               R$ {currentPrice.toFixed(2).replace('.', ',')}
@@ -191,17 +191,6 @@ export const ProductCard = memo(function ProductCard({
               </span>
             </span>
           </div>
-        </div>
-
-        {/* Grupo 3: Pergunta & Garantia Vitalícia */}
-        <div className="mt-auto bg-brand-background border border-brand-border p-2.5 sm:p-3 flex flex-col gap-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-brand-text leading-snug">
-            <ShieldCheck className="w-3.5 h-3.5 text-brand-gold shrink-0" strokeWidth={1.6} />
-            <span>Fica preto?</span>
-          </div>
-          <p className="text-[11px] text-brand-textMuted leading-snug">
-            Não. Garantia vitalícia contra oxidação.
-          </p>
         </div>
       </div>
     </article>
