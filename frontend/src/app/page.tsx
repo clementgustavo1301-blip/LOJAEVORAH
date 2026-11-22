@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { fetchProducts } from '@/lib/api';
 import { ProductCard } from '@/components/product/product-card';
-import { HeroParallax } from '@/components/home/hero-parallax';
+import { HeroCarousel } from '@/components/home/hero-carousel';
 import { CategoryIcon, CategoryIconName } from '@/components/home/category-icons';
 import { EDITORIAL_HAND_BLUR_DATA_URL } from '@/lib/media-placeholders';
 import { ArrowRight } from 'lucide-react';
@@ -26,8 +26,8 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col w-full bg-brand-background text-brand-text">
-      {/* 1. Hero Section: Horizontal Panorâmico com Vídeo de Fundo + Modelo Clean + Parallax */}
-      <HeroParallax />
+      {/* 1. Hero Section: Carrossel de 3 Banners Fotográficos Full-Bleed */}
+      <HeroCarousel />
 
       {/* 2. Pilares Arquitetônicos */}
       <section className="border-b border-brand-border bg-white px-6 sm:px-10 lg:px-12 py-7">
@@ -120,7 +120,7 @@ export default async function HomePage() {
           </div>
 
           {bestSellers.length > 0 ? (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-10 sm:gap-x-7">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {bestSellers.map((product, index) => (
                 <ProductCard
                   key={product.id}
@@ -194,7 +194,7 @@ export default async function HomePage() {
           </div>
 
           {newArrivals.length > 0 ? (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-10 sm:gap-x-7">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {newArrivals.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}

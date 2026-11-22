@@ -35,11 +35,16 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     const isProd = process.env.NODE_ENV === 'production';
-    const prodSpeculationHeaders = isProd
+    const prodSpeculationRoutes = isProd
       ? [
           {
-            key: 'Speculation-Rules',
-            value: '"/speculation.json"',
+            source: '/((?!_next/|api/|speculation\\.json).*)',
+            headers: [
+              {
+                key: 'Speculation-Rules',
+                value: '"/speculation.json"',
+              },
+            ],
           },
         ]
       : [];
@@ -107,12 +112,7 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      {
-        source: '/((?!_next/|api/|speculation\\.json).*)',
-        headers: [
-          ...prodSpeculationHeaders,
-        ],
-      },
+      ...prodSpeculationRoutes,
     ];
   },
 };

@@ -11,9 +11,10 @@ import { useCart } from '@/context/cart-context';
 import { FinishType, Product } from '@/types';
 import { SwatchSelector, FINISH_DETAILS } from '@/components/ui/swatch-selector';
 import { QuantitySelector } from '@/components/ui/quantity-selector';
+import { Rating } from '@/components/ui/rating';
 import { ProductCard } from '@/components/product/product-card';
 import { TrustSeals } from '@/components/ui/trust-seals';
-import { Heart, Ruler, Plus, Minus, X } from 'lucide-react';
+import { Heart, Ruler, Plus, Minus, X, ShieldCheck, Truck } from 'lucide-react';
 
 interface ProductDetailClientProps {
   initialProduct: Product | null;
@@ -96,7 +97,19 @@ export function ProductDetailClient({
 
   const isFavorite = isWishlisted(product.id);
   const currentPrice = product.promotionalPrice || product.price;
-  const originalPrice = product.promotionalPrice ? product.price : null;
+  const originalPrice =
+    product.promotionalPrice && product.promotionalPrice < product.price
+      ? product.price
+      : null;
+  const discountPercent = originalPrice
+    ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100)
+    : null;
+  const ratingValue =
+    Number.isFinite(product.rating) && product.rating > 0 ? product.rating : 5.0;
+  const reviewsCount =
+    typeof product.reviewsCount === 'number' && product.reviewsCount > 0
+      ? product.reviewsCount
+      : undefined;
   const installmentValue = (currentPrice / 6).toFixed(2).replace('.', ',');
 
   const handleAddToCart = () => {
@@ -128,9 +141,7 @@ export function ProductDetailClient({
         ? `${address.street}, ${address.city}/${address.state}`
         : `${address.city}/${address.state}`;
       const shippingRateText =
-        currentPrice * quantity >= 299
-          ? 'Frete Cortesia • Entrega segurada em 2 a 4 dias úteis'
-          : 'Sedex Segurado: R$ 24,90 • Entrega em 2 a 4 dias úteis';
+        'Frete grátis (R$ 0,00) • Entrega segurada em 2 a 4 dias úteis';
 
       setShippingResult(`${locationPrefix} • ${shippingRateText}`);
     } finally {
@@ -222,37 +233,58 @@ export function ProductDetailClient({
             )}
           </div>
 
-          {/* Especificações e Compra */}
-          <div className="lg:col-span-5 flex flex-col gap-5 sm:gap-6 bg-white p-5 sm:p-9 border border-brand-border">
-            <div>
+          {/* Especificações e Compra (8px interno | 24px entre grupos) */}
+          <div className="lg:col-span-5 flex flex-col gap-6 bg-white p-5 sm:p-9 border border-brand-border">
+            {/* Grupo 1: Material, Título e Avaliação */}
+            <div className="flex flex-col gap-2">
               <span className="text-[10px] font-semibold text-brand-gold uppercase tracking-[0.2em]">
                 {product.material || 'Aço Cirúrgico 316L & Prata 925'}
               </span>
-              <h1 className="text-2xl sm:text-3xl font-serif font-normal text-brand-text mt-1.5 leading-tight">
+              <h1 className="text-2xl sm:text-3xl font-serif font-normal text-brand-text leading-tight">
                 {product.name}
               </h1>
+              <Rating
+                rating={ratingValue}
+                reviewsCount={reviewsCount}
+                size="md"
+                showReviewsLabel
+              />
             </div>
 
-            {/* Preço */}
-            <div className="py-4 border-y border-brand-border">
-              <div className="flex items-baseline gap-3">
-                <span className="text-2xl font-semibold text-brand-text tabular-nums">
+            {/* Grupo 2: Preço, Parcelamento e Valor do Frete */}
+            <div className="py-6 border-y border-brand-border flex flex-col gap-2">
+              <div className="flex flex-wrap items-baseline gap-2.5 tabular-nums">
+                <span className="text-2xl font-semibold text-brand-text">
                   R$ {currentPrice.toFixed(2).replace('.', ',')}
                 </span>
                 {originalPrice && (
-                  <span className="text-sm text-brand-textMuted/70 line-through font-normal tabular-nums">
+                  <span className="text-sm text-brand-textMuted/70 line-through font-normal">
                     R$ {originalPrice.toFixed(2).replace('.', ',')}
                   </span>
                 )}
+                {discountPercent !== null && (
+                  <span className="px-2 py-0.5 bg-[#0A0A0A] text-white text-[10px] font-semibold uppercase tracking-[0.14em]">
+                    -{discountPercent}%
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-brand-textMuted mt-1 tabular-nums">
+              <p className="text-xs text-brand-textMuted tabular-nums">
                 em até 6x de R$ {installmentValue} sem juros
               </p>
+              <div className="flex items-center gap-2 text-xs font-medium text-brand-text">
+                <Truck className="w-3.5 h-3.5 text-brand-gold shrink-0" strokeWidth={1.6} />
+                <span>
+                  Frete grátis{' '}
+                  <span className="text-brand-textMuted font-normal tabular-nums">
+                    (R$ 0,00)
+                  </span>
+                </span>
+              </div>
             </div>
 
-            {/* Seletor de Acabamento */}
-            <div>
-              <div className="flex items-center justify-between mb-2.5">
+            {/* Grupo 3: Seletor de Acabamento */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text">
                   Acabamento:{' '}
                   <span className="text-brand-textMuted font-normal">
@@ -268,10 +300,10 @@ export function ProductDetailClient({
               />
             </div>
 
-            {/* Seletor de Tamanho */}
+            {/* Grupo 4: Seletor de Tamanho */}
             {product.availableSizes.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-2.5">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text">
                     Medida
                   </span>
@@ -303,8 +335,8 @@ export function ProductDetailClient({
               </div>
             )}
 
-            {/* Quantidade e CTAs */}
-            <div className="flex flex-col gap-4 pt-2">
+            {/* Grupo 5: Quantidade e CTAs */}
+            <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text">
                   Quantidade
@@ -317,31 +349,44 @@ export function ProductDetailClient({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className="h-12 bg-white border border-brand-text hover:bg-brand-background text-brand-text text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors"
+                  className="h-12 bg-white border border-brand-text hover:bg-brand-background active:scale-[0.98] text-brand-text text-[11px] font-semibold uppercase tracking-[0.16em] transition-all"
                 >
                   Adicionar à sacola
                 </button>
                 <button
                   type="button"
                   onClick={handleBuyNow}
-                  className="h-12 bg-[#0A0A0A] text-white hover:bg-brand-gold hover:text-[#0A0A0A] text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors"
+                  className="h-12 bg-[#0A0A0A] text-white hover:bg-brand-gold hover:text-[#0A0A0A] active:scale-[0.98] text-[11px] font-semibold uppercase tracking-[0.16em] transition-all"
                 >
                   Comprar agora
                 </button>
               </div>
-
-              <TrustSeals variant="inline-compact" className="mt-1" />
             </div>
 
-            {/* Cálculo de Entrega */}
-            <div className="p-4 bg-brand-background border border-brand-border">
+            <TrustSeals variant="inline-compact" />
+
+            {/* Grupo 6: Pergunta & Garantia Vitalícia */}
+            <div className="p-4 bg-brand-background border border-brand-border flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-brand-gold shrink-0" strokeWidth={1.6} />
+                <h2 className="text-xs font-semibold text-brand-text">
+                  Fica preto?
+                </h2>
+              </div>
+              <p className="text-xs text-brand-textMuted leading-relaxed">
+                Não. Garantia vitalícia contra oxidação.
+              </p>
+            </div>
+
+            {/* Grupo 7: Cálculo de Entrega */}
+            <div className="p-4 bg-brand-background border border-brand-border flex flex-col gap-2">
               <label
                 htmlFor="product-cep-input"
-                className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text block mb-2.5"
+                className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-text block"
               >
                 Simular entrega
               </label>
@@ -366,14 +411,14 @@ export function ProductDetailClient({
                 </button>
               </form>
               {shippingResult && (
-                <p className="text-xs text-brand-text mt-2.5 font-medium">
+                <p className="text-xs text-brand-text font-medium">
                   {shippingResult}
                 </p>
               )}
             </div>
 
-            {/* Acordeões Minimalistas (+ / -) */}
-            <div className="border-t border-brand-border pt-4 divide-y divide-brand-border">
+            {/* Grupo 8: Acordeões Minimalistas (+ / -) */}
+            <div className="border-t border-brand-border pt-6 divide-y divide-brand-border">
               <div className="py-3.5 first:pt-0">
                 <button
                   type="button"
@@ -388,7 +433,7 @@ export function ProductDetailClient({
                   )}
                 </button>
                 {activeAccordion === 'specs' && (
-                  <p className="text-xs text-brand-textMuted mt-2.5 leading-relaxed">
+                  <p className="text-xs text-brand-textMuted mt-2 leading-relaxed">
                     {product.description ||
                       product.specifications ||
                       'Aço cirúrgico 316L e Prata 925 com polimento espelhado. Imune à água, maresia e suor. 100% hipoalergênico.'}
@@ -410,7 +455,7 @@ export function ProductDetailClient({
                   )}
                 </button>
                 {activeAccordion === 'care' && (
-                  <p className="text-xs text-brand-textMuted mt-2.5 leading-relaxed">
+                  <p className="text-xs text-brand-textMuted mt-2 leading-relaxed">
                     Lave com água corrente e sabão neutro após contato intenso com mar ou cloro. Seque com flanela macia.
                   </p>
                 )}
@@ -430,8 +475,8 @@ export function ProductDetailClient({
                   )}
                 </button>
                 {activeAccordion === 'warranty' && (
-                  <p className="text-xs text-brand-textMuted mt-2.5 leading-relaxed">
-                    Garantia vitalícia contra oxidação, ferrugem e descascamento estrutural da liga metálica.
+                  <p className="text-xs text-brand-textMuted mt-2 leading-relaxed">
+                    Não fica preto, não enferruja e não descasca. Garantia vitalícia contra oxidação estrutural da liga metálica.
                   </p>
                 )}
               </div>
@@ -445,7 +490,7 @@ export function ProductDetailClient({
             <h2 className="text-xl sm:text-2xl font-serif font-normal text-brand-text mb-6 sm:mb-8">
               Combinações Recomendadas
             </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3.5 gap-y-7 sm:gap-x-7 sm:gap-y-10">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {relatedProducts.map((p) => (
                 <ProductCard key={p.id} product={p} />
               ))}

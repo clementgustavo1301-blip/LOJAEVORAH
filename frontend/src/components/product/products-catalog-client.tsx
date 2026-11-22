@@ -405,7 +405,7 @@ export function ProductsCatalogClient({
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 xl:grid-cols-3 gap-x-3.5 gap-y-7 sm:gap-x-7 sm:gap-y-10">
+              <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                 {filteredProducts.map((product, index) => (
                   <ProductCard
                     key={product.id}

@@ -1,31 +1,62 @@
 import React from 'react';
+import { Star } from 'lucide-react';
 
 interface RatingProps {
   rating: number;
   reviewsCount?: number;
   size?: 'sm' | 'md';
+  showReviewsLabel?: boolean;
+  className?: string;
 }
 
-export function Rating({ rating, reviewsCount, size = 'sm' }: RatingProps) {
+export function Rating({
+  rating,
+  reviewsCount,
+  size = 'sm',
+  showReviewsLabel = false,
+  className = '',
+}: RatingProps) {
   const stars = [1, 2, 3, 4, 5];
-  const starSize = size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5';
+  const safeRating = Math.min(5, Math.max(0, Number.isFinite(rating) ? rating : 5));
+  const roundedStars = Math.round(safeRating);
+  const formattedRating = safeRating.toFixed(1);
+  const hasReviews = typeof reviewsCount === 'number' && reviewsCount > 0;
+
+  const starSize = size === 'sm' ? 'w-2.5 h-2.5 sm:w-3 sm:h-3' : 'w-3.5 h-3.5';
+  const textSize = size === 'sm' ? 'text-[11px]' : 'text-xs';
 
   return (
-    <div className="flex items-center gap-1.5 select-none">
-      <div className="flex items-center gap-0.5 text-brand-text">
+    <div className={`flex items-center gap-1.5 select-none ${className}`.trim()}>
+      <span className="sr-only">
+        Avaliação {formattedRating} de 5 estrelas
+        {hasReviews ? `, ${reviewsCount} avaliações` : ''}
+      </span>
+      <div className="flex items-center gap-0.5" aria-hidden="true">
         {stars.map((star) => (
-          <svg
+          <Star
             key={star}
-            className={`${starSize} ${star <= Math.round(rating) ? 'fill-brand-text text-brand-text' : 'fill-brand-border text-brand-border'}`}
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-          </svg>
+            strokeWidth={1.5}
+            className={`${starSize} ${
+              star <= roundedStars
+                ? 'fill-brand-gold text-brand-gold'
+                : 'fill-brand-border text-brand-border'
+            }`}
+          />
         ))}
       </div>
-      <span className="text-[11px] text-brand-textMuted font-medium tabular-nums">
-        {rating.toFixed(1)} {reviewsCount !== undefined && `(${reviewsCount})`}
+      <span className={`${textSize} text-brand-text font-medium tabular-nums`}>
+        {formattedRating}
+        {hasReviews && (
+          <span className="text-brand-textMuted font-normal ml-1">
+            ({reviewsCount}
+            {showReviewsLabel
+              ? reviewsCount === 1
+                ? ' avaliação'
+                : ' avaliações'
+              : ''}
+            )
+          </span>
+        )}
       </span>
     </div>
   );
