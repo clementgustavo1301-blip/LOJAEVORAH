@@ -131,10 +131,10 @@ export async function POST(req: NextRequest) {
         available_sizes: body.availableSizes ?? ['Tamanho Único'],
         images: body.images ?? ['/images/chain-grumet.webp'],
         category_id: body.categoryId || 'cat-correntes',
-        supplier_name: body.supplierName || 'Shopee Brasil',
+        supplier_name: body.supplierName || 'Fornecedor Parceiro',
         supplier_url: body.supplierUrl || '',
         supplier_cost: body.supplierCost ?? 25,
-        estimated_delivery_days: body.estimatedDeliveryDays || '4 a 8 dias úteis (SPX / J&T)',
+        estimated_delivery_days: body.estimatedDeliveryDays || '4 a 8 dias úteis',
       })
       .select('*, category:categories(*)')
       .single();

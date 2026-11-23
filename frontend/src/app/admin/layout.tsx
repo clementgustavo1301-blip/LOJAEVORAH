@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Package, Truck, LogOut, KeyRound, ExternalLink, X, Check } from 'lucide-react';
+import { Package, Store, Truck, LogOut, KeyRound, ExternalLink, X, Check } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -147,6 +147,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 <Package className="w-4 h-4" />
                 <span>Produtos</span>
+              </Link>
+              <Link
+                href="/admin/fornecedores"
+                className={`px-3 py-1.5 rounded-sm transition-colors flex items-center gap-1.5 ${
+                  pathname?.startsWith('/admin/fornecedores')
+                    ? 'bg-white/20 text-white font-medium'
+                    : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <Store className="w-4 h-4" />
+                <span>Fornecedores</span>
               </Link>
               <Link
                 href="/admin/pedidos"

@@ -13,7 +13,12 @@ import {
   detectSupplierPlatform,
   FALLBACK_CATEGORIES,
 } from '@/lib/api';
-import { Category, Product, FinishType, SupplierPlatform } from '@/types';
+import {
+  getStoredSuppliers,
+  resolveSupplierPreset,
+  SUPPLIER_PLATFORM_META,
+} from '@/lib/suppliers';
+import { Category, Product, FinishType, Supplier, SupplierPlatform } from '@/types';
 import {
   Package,
   Store,
@@ -154,13 +159,90 @@ function ProductPlacementFields({
   );
 }
 
+function SupplierBindingFields({
+  suppliers,
+  selectedSupplierId,
+  onPickSupplier,
+  supplierName,
+  onSupplierNameChange,
+  deliveryDays,
+  onDeliveryDaysChange,
+}: {
+  suppliers: Supplier[];
+  selectedSupplierId: string;
+  onPickSupplier: (id: string) => void;
+  supplierName: string;
+  onSupplierNameChange: (name: string) => void;
+  deliveryDays: string;
+  onDeliveryDaysChange: (days: string) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-sm border border-brand-border bg-brand-background/50 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-xs font-medium text-brand-text">
+          Fornecedor vinculado
+        </label>
+        <Link
+          href="/admin/fornecedores"
+          className="text-[11px] text-brand-textMuted hover:text-brand-text underline underline-offset-2"
+        >
+          Gerenciar fornecedores
+        </Link>
+      </div>
+
+      {suppliers.length > 0 && (
+        <select
+          value={selectedSupplierId}
+          onChange={(e) => onPickSupplier(e.target.value)}
+          className="w-full h-9 bg-white border border-brand-border rounded-sm px-2.5 text-xs text-brand-text focus:border-brand-text outline-none"
+        >
+          <option value="">Escolher fornecedor cadastrado (opcional)</option>
+          {suppliers.map((sup) => (
+            <option key={sup.id} value={sup.id}>
+              {sup.name} ({SUPPLIER_PLATFORM_META[sup.platform].shortLabel})
+            </option>
+          ))}
+        </select>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div>
+          <label className="text-[11px] text-brand-textMuted block mb-1">
+            Nome do Fornecedor / Loja
+          </label>
+          <input
+            type="text"
+            value={supplierName}
+            onChange={(e) => onSupplierNameChange(e.target.value)}
+            placeholder="Ex: Atacado Inox SP, Mercado Livre..."
+            className="w-full h-9 bg-white border border-brand-border rounded-sm px-2.5 text-xs text-brand-text focus:border-brand-text outline-none"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] text-brand-textMuted block mb-1">
+            Prazo estimado de entrega
+          </label>
+          <input
+            type="text"
+            value={deliveryDays}
+            onChange={(e) => onDeliveryDaysChange(e.target.value)}
+            placeholder="Ex: 3 a 7 dias úteis"
+            className="w-full h-9 bg-white border border-brand-border rounded-sm px-2.5 text-xs text-brand-text focus:border-brand-text outline-none"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminProdutosPage() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [platformFilter, setPlatformFilter] = useState<'ALL' | SupplierPlatform>('ALL');
+  const [platformFilter, setPlatformFilter] = useState<'ALL' | 'MARKETPLACES' | SupplierPlatform>('ALL');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Importação por link
@@ -172,9 +254,10 @@ export default function AdminProdutosPage() {
   const [showPasteHelper, setShowPasteHelper] = useState(false);
 
   // Modal de Importação (Novo Produto)
+  const [importSupplierId, setImportSupplierId] = useState('');
   const [importUrl, setImportUrl] = useState('');
-  const [importPlatform, setImportPlatform] = useState<SupplierPlatform>('SHOPEE');
-  const [importSupplierName, setImportSupplierName] = useState('Shopee Brasil');
+  const [importPlatform, setImportPlatform] = useState<SupplierPlatform>('DIRECT');
+  const [importSupplierName, setImportSupplierName] = useState('Fornecedor Parceiro');
   const [importName, setImportName] = useState('');
   const [importDescription, setImportDescription] = useState('');
   const [importCategory, setImportCategory] = useState('cat-correntes');
@@ -196,6 +279,7 @@ export default function AdminProdutosPage() {
   const [editIsBestSeller, setEditIsBestSeller] = useState(true);
   const [editIsNew, setEditIsNew] = useState(true);
   const [editIsFeatured, setEditIsFeatured] = useState(true);
+  const [editSupplierId, setEditSupplierId] = useState('');
   const [supplierName, setSupplierName] = useState('');
   const [supplierUrl, setSupplierUrl] = useState('');
   const [supplierCost, setSupplierCost] = useState<string>('');
@@ -206,6 +290,22 @@ export default function AdminProdutosPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    const loadedSuppliers = getStoredSuppliers().filter((s) => s.isActive);
+    setSuppliers(loadedSuppliers);
+
+    if (typeof window !== 'undefined') {
+      const requestedId = new URLSearchParams(window.location.search).get('supplierId');
+      const matched = loadedSuppliers.find((s) => s.id === requestedId);
+      if (matched) {
+        setImportSupplierId(matched.id);
+        setImportPlatform(matched.platform);
+        setImportSupplierName(matched.name);
+        setImportDeliveryDays(matched.estimatedDeliveryDays);
+        if (matched.websiteUrl) setImportUrl(matched.websiteUrl);
+        setIsImportModalOpen(true);
+      }
+    }
+
     const instant = getStoredProductsSnapshot();
     if (instant.length > 0) {
       setProducts(instant);
@@ -268,13 +368,9 @@ export default function AdminProdutosPage() {
 
     const detected = detectSupplierPlatform(cleanUrl);
     setImportPlatform(detected);
-    if (detected === 'SHOPEE') {
-      setImportSupplierName('Shopee Brasil');
-      setImportDeliveryDays('4 a 8 dias úteis');
-    } else if (detected === 'TIKTOK') {
-      setImportSupplierName('TikTok Shop');
-      setImportDeliveryDays('3 a 6 dias úteis');
-    }
+    const preset = resolveSupplierPreset(detected);
+    setImportSupplierName(preset.defaultSupplierName);
+    setImportDeliveryDays(preset.defaultDeliveryDays);
 
     try {
       const res = await fetch('/api/suppliers/extract', {
@@ -312,7 +408,7 @@ export default function AdminProdutosPage() {
             );
           } else {
             setExtractionFeedback(
-              'Foto, nome e descrição carregados. A Shopee não exibe o preço pelo link — informe o Custo real abaixo ou cole o texto do anúncio.'
+              'Foto e dados iniciais carregados do link. Informe o Custo real abaixo ou cole o texto do anúncio.'
             );
           }
         }
@@ -368,15 +464,20 @@ export default function AdminProdutosPage() {
 
   const handleSelectPlatformPreset = (plat: SupplierPlatform) => {
     setImportPlatform(plat);
-    if (plat === 'SHOPEE') {
-      setImportSupplierName('Shopee Brasil');
-      setImportDeliveryDays('4 a 8 dias úteis');
-    } else if (plat === 'TIKTOK') {
-      setImportSupplierName('TikTok Shop');
-      setImportDeliveryDays('3 a 6 dias úteis');
-    } else {
-      setImportSupplierName('Fornecedor Parceiro');
-      setImportDeliveryDays('5 a 10 dias úteis');
+    const preset = resolveSupplierPreset(plat);
+    setImportSupplierName(preset.defaultSupplierName);
+    setImportDeliveryDays(preset.defaultDeliveryDays);
+  };
+
+  const handlePickImportSupplier = (supplierId: string) => {
+    setImportSupplierId(supplierId);
+    const chosen = suppliers.find((s) => s.id === supplierId);
+    if (!chosen) return;
+    setImportPlatform(chosen.platform);
+    setImportSupplierName(chosen.name);
+    setImportDeliveryDays(chosen.estimatedDeliveryDays);
+    if (!importUrl.trim() && chosen.websiteUrl) {
+      setImportUrl(chosen.websiteUrl);
     }
   };
 
@@ -388,7 +489,7 @@ export default function AdminProdutosPage() {
 
   const handleCreateImportedProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!importName.trim() || !importUrl.trim()) return;
+    if (!importName.trim()) return;
 
     setImportingSaving(true);
     try {
@@ -410,7 +511,7 @@ export default function AdminProdutosPage() {
         isNew: importIsNew,
         isBestSeller: importIsBestSeller,
         isFeatured: importIsFeatured,
-        supplierName: importSupplierName.trim() || 'Shopee Brasil',
+        supplierName: importSupplierName.trim() || 'Fornecedor Parceiro',
         supplierUrl: importUrl.trim(),
         estimatedDeliveryDays: importDeliveryDays.trim() || '4 a 8 dias úteis',
         availableFinishes: importFinishes,
@@ -423,6 +524,10 @@ export default function AdminProdutosPage() {
       showToast(`Produto "${created.name}" cadastrado.`);
 
       // Reset
+      setImportSupplierId('');
+      setImportPlatform('DIRECT');
+      setImportSupplierName('Fornecedor Parceiro');
+      setImportDeliveryDays('4 a 8 dias úteis');
       setImportName('');
       setImportDescription('');
       setImportUrl('');
@@ -445,6 +550,9 @@ export default function AdminProdutosPage() {
   };
 
   const openEditModal = (p: Product) => {
+    const matchedSup = suppliers.find(
+      (s) => s.name.trim().toLowerCase() === (p.supplierName || '').trim().toLowerCase()
+    );
     setSelectedProduct(p);
     setEditProductName(p.name);
     setEditDescription(p.description || '');
@@ -452,12 +560,24 @@ export default function AdminProdutosPage() {
     setEditIsBestSeller(Boolean(p.isBestSeller));
     setEditIsNew(Boolean(p.isNew));
     setEditIsFeatured(Boolean(p.isFeatured));
-    setSupplierName(p.supplierName || 'Shopee Brasil');
+    setEditSupplierId(matchedSup?.id || '');
+    setSupplierName(p.supplierName || 'Fornecedor Parceiro');
     setSupplierUrl(p.supplierUrl || '');
     setSupplierCost(p.supplierCost ? p.supplierCost.toFixed(2) : '25.00');
     setSalePrice((p.promotionalPrice || p.price).toFixed(2));
     setDeliveryDays(p.estimatedDeliveryDays || '4 a 8 dias úteis');
     setEditImagesText(p.images?.join('\n') || '');
+  };
+
+  const handlePickEditSupplier = (supplierId: string) => {
+    setEditSupplierId(supplierId);
+    const chosen = suppliers.find((s) => s.id === supplierId);
+    if (!chosen) return;
+    setSupplierName(chosen.name);
+    setDeliveryDays(chosen.estimatedDeliveryDays);
+    if (!supplierUrl.trim() && chosen.websiteUrl) {
+      setSupplierUrl(chosen.websiteUrl);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -538,13 +658,21 @@ export default function AdminProdutosPage() {
 
   // Métricas
   const totalProducts = products.length;
-  const shopeeCount = products.filter((p) => detectSupplierPlatform(p.supplierUrl, p.supplierName) === 'SHOPEE').length;
-  const tiktokCount = products.filter((p) => detectSupplierPlatform(p.supplierUrl, p.supplierName) === 'TIKTOK').length;
+  const directCount = products.filter((p) => {
+    const plat = detectSupplierPlatform(p.supplierUrl, p.supplierName);
+    return plat === 'DIRECT' || plat === 'OTHER';
+  }).length;
+  const marketplaceCount = totalProducts - directCount;
+  const platformCount = (plat: SupplierPlatform) =>
+    products.filter((p) => detectSupplierPlatform(p.supplierUrl, p.supplierName) === plat).length;
 
   // Filtros
   const filteredProducts = products.filter((p) => {
     const plat = detectSupplierPlatform(p.supplierUrl, p.supplierName);
-    if (platformFilter !== 'ALL' && plat !== platformFilter) {
+    if (platformFilter === 'MARKETPLACES' && (plat === 'DIRECT' || plat === 'OTHER')) {
+      return false;
+    }
+    if (platformFilter !== 'ALL' && platformFilter !== 'MARKETPLACES' && plat !== platformFilter) {
       return false;
     }
     if (search.trim()) {
@@ -624,7 +752,7 @@ export default function AdminProdutosPage() {
                     void handleExtractFromUrl(pasted);
                   }
                 }}
-                placeholder="Cole o link do produto na Shopee ou TikTok Shop para cadastrar..."
+                placeholder="Cole o link do produto (Mercado Livre, AliExpress, Shopee, TikTok, atacado ou site próprio)..."
                 className="w-full h-10 pl-9 pr-3 rounded-sm bg-brand-background border border-brand-border text-xs text-brand-text placeholder:text-brand-textMuted focus:border-brand-text outline-none"
               />
             </div>
@@ -648,16 +776,16 @@ export default function AdminProdutosPage() {
           </div>
 
           <div className="bg-white rounded border border-brand-border p-4">
-            <span className="text-xs text-brand-textMuted block">Shopee</span>
+            <span className="text-xs text-brand-textMuted block">Marketplaces</span>
             <span className="text-2xl font-semibold text-brand-text font-mono mt-1 block tabular-nums">
-              {shopeeCount}
+              {marketplaceCount}
             </span>
           </div>
 
           <div className="bg-white rounded border border-brand-border p-4">
-            <span className="text-xs text-brand-textMuted block">TikTok Shop</span>
+            <span className="text-xs text-brand-textMuted block">Diretos / Outros</span>
             <span className="text-2xl font-semibold text-brand-text font-mono mt-1 block tabular-nums">
-              {tiktokCount}
+              {directCount}
             </span>
           </div>
         </div>
@@ -666,10 +794,14 @@ export default function AdminProdutosPage() {
         <div className="bg-white rounded border border-brand-border p-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
             {[
-              { label: 'Todos', value: 'ALL' as const },
-              { label: `Shopee (${shopeeCount})`, value: 'SHOPEE' as const },
-              { label: `TikTok Shop (${tiktokCount})`, value: 'TIKTOK' as const },
-              { label: 'Outros', value: 'OTHER' as const },
+              { label: `Todos (${totalProducts})`, value: 'ALL' as const },
+              { label: `Diretos (${platformCount('DIRECT')})`, value: 'DIRECT' as const },
+              { label: `Marketplaces (${marketplaceCount})`, value: 'MARKETPLACES' as const },
+              { label: `Mercado Livre (${platformCount('MERCADOLIVRE')})`, value: 'MERCADOLIVRE' as const },
+              { label: `AliExpress (${platformCount('ALIEXPRESS')})`, value: 'ALIEXPRESS' as const },
+              { label: `Shopee (${platformCount('SHOPEE')})`, value: 'SHOPEE' as const },
+              { label: `TikTok (${platformCount('TIKTOK')})`, value: 'TIKTOK' as const },
+              { label: `Outros (${platformCount('OTHER')})`, value: 'OTHER' as const },
             ].map((tab) => (
               <button
                 key={tab.value}
@@ -813,10 +945,10 @@ export default function AdminProdutosPage() {
             </button>
 
             <h3 className="font-serif text-lg font-medium text-brand-text">
-              Cadastrar Produto via Link
+              Cadastrar Produto
             </h3>
             <p className="text-xs text-brand-textMuted mt-0.5">
-              Informe o link do anúncio no fornecedor para vincular à sua loja.
+              Importe de qualquer marketplace/site HTTPS ou vincule diretamente a um fornecedor/atacadista.
             </p>
 
             {extractionFeedback && (
@@ -837,7 +969,7 @@ export default function AdminProdutosPage() {
             {showPasteHelper && (
               <div className="mt-3 p-3 rounded-sm bg-brand-background border border-dashed border-brand-border space-y-1.5">
                 <label className="text-[11px] font-medium text-brand-text block">
-                  Cole aqui o texto copiado da página da Shopee (incluindo o valor R$):
+                  Cole aqui o texto copiado do anúncio ou catálogo (incluindo o valor R$):
                 </label>
                 <textarea
                   rows={3}
@@ -850,10 +982,20 @@ export default function AdminProdutosPage() {
             )}
 
             <form onSubmit={handleCreateImportedProduct} className="mt-4 space-y-4">
+              <SupplierBindingFields
+                suppliers={suppliers}
+                selectedSupplierId={importSupplierId}
+                onPickSupplier={handlePickImportSupplier}
+                supplierName={importSupplierName}
+                onSupplierNameChange={setImportSupplierName}
+                deliveryDays={importDeliveryDays}
+                onDeliveryDaysChange={setImportDeliveryDays}
+              />
+
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium text-brand-text block">
-                    Link do Anúncio (Shopee ou TikTok Shop)
+                    Link no Fornecedor (opcional para fornecedor direto)
                   </label>
                   {!extractionFeedback && (
                     <button
@@ -883,9 +1025,8 @@ export default function AdminProdutosPage() {
                         void handleExtractFromUrl(pasted);
                       }
                     }}
-                    placeholder="https://shopee.com.br/..."
+                    placeholder="https://... (opcional para fabricante/atacado)"
                     className="flex-1 h-10 bg-white border border-brand-border rounded-sm px-3 text-xs text-brand-text focus:border-brand-text outline-none"
-                    required
                   />
                   <button
                     type="button"
@@ -1159,17 +1300,26 @@ export default function AdminProdutosPage() {
                 />
               </div>
 
+              <SupplierBindingFields
+                suppliers={suppliers}
+                selectedSupplierId={editSupplierId}
+                onPickSupplier={handlePickEditSupplier}
+                supplierName={supplierName}
+                onSupplierNameChange={setSupplierName}
+                deliveryDays={deliveryDays}
+                onDeliveryDaysChange={setDeliveryDays}
+              />
+
               <div>
                 <label className="text-xs font-medium text-brand-text block mb-1">
-                  Link do Fornecedor (Shopee / TikTok)
+                  Link do Produto / Fornecedor (opcional)
                 </label>
                 <input
                   type="url"
                   value={supplierUrl}
                   onChange={(e) => setSupplierUrl(e.target.value)}
-                  placeholder="https://..."
+                  placeholder="https://... (opcional para fornecedor direto)"
                   className="w-full h-10 bg-white border border-brand-border rounded-sm px-3 text-xs text-brand-text focus:border-brand-text outline-none"
-                  required
                 />
               </div>
 

@@ -11,7 +11,13 @@ import {
   syncPendingOrdersWithServer,
   updateStoredOrderPaymentStatus,
 } from '@/lib/api';
-import { Order, FulfillmentStatus } from '@/types';
+import { Order, FulfillmentStatus, Supplier } from '@/types';
+import {
+  buildWhatsAppHref,
+  CARRIER_OPTIONS,
+  getStoredSuppliers,
+  resolveSupplierPreset,
+} from '@/lib/suppliers';
 import {
   Package,
   ExternalLink,
@@ -28,19 +34,12 @@ import {
   QrCode,
   XCircle,
   Trash2,
+  MessageCircle,
 } from 'lucide-react';
-
-const CARRIER_OPTIONS = [
-  'Shopee Xpress (SPX)',
-  'J&T Express',
-  'Correios',
-  'Jadlog',
-  'Loggi',
-  'Total Express',
-];
 
 export default function AdminPedidosPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
@@ -51,15 +50,17 @@ export default function AdminPedidosPage() {
 
   // Modal de Envio e Rastreamento
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [modalSupplierIdRef, setModalSupplierIdRef] = useState('');
   const [modalSupplierName, setModalSupplierName] = useState('');
   const [modalSupplierUrl, setModalSupplierUrl] = useState('');
   const [modalSupplierId, setModalSupplierId] = useState('');
   const [modalTrackingCode, setModalTrackingCode] = useState('');
-  const [modalTrackingCarrier, setModalTrackingCarrier] = useState('Shopee Xpress (SPX)');
+  const [modalTrackingCarrier, setModalTrackingCarrier] = useState('Correios');
   const [modalStatus, setModalStatus] = useState<FulfillmentStatus>('ORDERED_SUPPLIER');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    setSuppliers(getStoredSuppliers());
     const instant = getStoredOrdersSnapshot();
     if (instant.length > 0) {
       setOrders(instant);
@@ -165,16 +166,32 @@ Cidade/UF: ${addr.city || ''}${addr.state ? ` - ${addr.state}` : ''}`;
   const openFulfillmentModal = (order: Order) => {
     const plat = detectSupplierPlatform(order.supplierUrl, order.supplierName);
     const defaultCarrier =
-      order.trackingCarrier ||
-      (plat === 'SHOPEE' ? 'Shopee Xpress (SPX)' : plat === 'TIKTOK' ? 'J&T Express' : 'Correios');
+      order.trackingCarrier || resolveSupplierPreset(plat).defaultCarrier;
+    const matchedSup = suppliers.find(
+      (s) => s.name.trim().toLowerCase() === (order.supplierName || '').trim().toLowerCase()
+    );
 
     setSelectedOrder(order);
-    setModalSupplierName(order.supplierName || 'Shopee Brasil');
+    setModalSupplierIdRef(matchedSup?.id || '');
+    setModalSupplierName(order.supplierName || 'Fornecedor Parceiro');
     setModalSupplierUrl(order.supplierUrl || order.items?.[0]?.supplierUrl || '');
     setModalSupplierId(order.supplierOrderId || '');
     setModalTrackingCode(order.trackingCode || '');
     setModalTrackingCarrier(defaultCarrier);
     setModalStatus(order.fulfillmentStatus === 'PENDING_SUPPLIER' ? 'ORDERED_SUPPLIER' : order.fulfillmentStatus);
+  };
+
+  const handleSelectOrderSupplier = (supId: string) => {
+    setModalSupplierIdRef(supId);
+    const sup = suppliers.find((s) => s.id === supId);
+    if (!sup) return;
+    setModalSupplierName(sup.name);
+    if (sup.websiteUrl && !modalSupplierUrl.trim()) {
+      setModalSupplierUrl(sup.websiteUrl);
+    }
+    if (sup.defaultCarrier) {
+      setModalTrackingCarrier(sup.defaultCarrier);
+    }
   };
 
   const handleSaveFulfillment = async (e: React.FormEvent) => {
@@ -193,7 +210,7 @@ Cidade/UF: ${addr.city || ''}${addr.state ? ` - ${addr.state}` : ''}`;
         supplierUrl: modalSupplierUrl.trim() || undefined,
         supplierOrderId: modalSupplierId.trim() || undefined,
         trackingCode: modalTrackingCode.trim() || undefined,
-        trackingCarrier: modalTrackingCarrier.trim() || 'Shopee Xpress (SPX)',
+        trackingCarrier: modalTrackingCarrier.trim() || 'Correios',
       });
 
       setOrders((prev) =>
@@ -206,7 +223,7 @@ Cidade/UF: ${addr.city || ''}${addr.state ? ` - ${addr.state}` : ''}`;
                 supplierUrl: modalSupplierUrl.trim() || o.supplierUrl,
                 supplierOrderId: modalSupplierId.trim() || undefined,
                 trackingCode: modalTrackingCode.trim() || undefined,
-                trackingCarrier: modalTrackingCarrier.trim() || 'Shopee Xpress (SPX)',
+                trackingCarrier: modalTrackingCarrier.trim() || 'Correios',
               }
             : o
         )
@@ -651,6 +668,43 @@ Cidade/UF: ${addr.city || ''}${addr.state ? ` - ${addr.state}` : ''}`;
                 </div>
               </div>
 
+              {suppliers.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-brand-text block">
+                      Fornecedor Cadastrado
+                    </label>
+                    {(() => {
+                      const matched = suppliers.find((s) => s.id === modalSupplierIdRef);
+                      const wa = buildWhatsAppHref(matched?.whatsapp);
+                      return wa ? (
+                        <a
+                          href={wa}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-emerald-700 hover:underline flex items-center gap-1"
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          <span>Chamar no WhatsApp</span>
+                        </a>
+                      ) : null;
+                    })()}
+                  </div>
+                  <select
+                    value={modalSupplierIdRef}
+                    onChange={(e) => handleSelectOrderSupplier(e.target.value)}
+                    className="w-full h-10 bg-white border border-brand-border rounded-sm px-3 text-xs text-brand-text focus:border-brand-text outline-none"
+                  >
+                    <option value="">Selecionar fornecedor salvo (opcional)</option>
+                    {suppliers.map((sup) => (
+                      <option key={sup.id} value={sup.id}>
+                        {sup.name} ({sup.defaultCarrier})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-brand-text block mb-1">
@@ -660,13 +714,13 @@ Cidade/UF: ${addr.city || ''}${addr.state ? ` - ${addr.state}` : ''}`;
                     type="text"
                     value={modalSupplierName}
                     onChange={(e) => setModalSupplierName(e.target.value)}
-                    placeholder="Shopee / TikTok / Fornecedor"
+                    placeholder="Fornecedor / Atacado / Marketplace"
                     className="w-full h-10 bg-white border border-brand-border rounded-sm px-3 text-xs text-brand-text focus:border-brand-text outline-none"
                   />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-brand-text block mb-1">
-                    Link do Produto no Fornecedor
+                    Link no Fornecedor (opcional)
                   </label>
                   <input
                     type="url"

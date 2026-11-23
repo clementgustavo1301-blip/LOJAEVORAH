@@ -7,10 +7,13 @@ import {
   OrderCreatePayload,
   OrderPaymentStatus,
   FulfillmentStatus,
-  SupplierPlatform,
   FinishType,
 } from '@/types';
 import { isSupabaseConfigured } from './supabase/client';
+
+import { detectSupplierPlatform } from './suppliers';
+
+export { detectSupplierPlatform };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -26,13 +29,6 @@ export const CATEGORY_LOCAL_IMAGE_MAP: Record<string, string> = {
   'cat-brincos': '/images/earrings-hoops.webp',
   'cat-acessorios': '/images/chain-gold-rolo.webp',
 };
-
-export function detectSupplierPlatform(url?: string, supplierName?: string): SupplierPlatform {
-  const combined = `${url || ''} ${supplierName || ''}`.toLowerCase();
-  if (combined.includes('shopee') || combined.includes('shp.ee')) return 'SHOPEE';
-  if (combined.includes('tiktok')) return 'TIKTOK';
-  return 'OTHER';
-}
 
 export const FALLBACK_CATEGORIES: Category[] = [
   { id: 'cat-aneis', name: 'Anéis', slug: 'aneis', description: 'Anéis maciços em Aço 316L', imageUrl: '/images/ring-square.webp', _count: { products: 0 } },
@@ -492,8 +488,8 @@ export async function fetchProductBySlug(slug: string): Promise<Product | null> 
 
 function buildLocalOrderItems(items: OrderCreatePayload['items'], catalog: Product[]): OrderItem[] {
   const firstProduct = catalog.find((p) => p.id === items[0]?.productId);
-  const primarySupplierName = firstProduct?.supplierName || 'Shopee Brasil (Loja Oficial Inox SP)';
-  const primarySupplierUrl = firstProduct?.supplierUrl || 'https://shopee.com.br';
+  const primarySupplierName = firstProduct?.supplierName || 'Fornecedor Parceiro';
+  const primarySupplierUrl = firstProduct?.supplierUrl || '';
 
   return items.map((item) => {
     const prod = catalog.find((p) => p.id === item.productId);
@@ -542,8 +538,8 @@ export function saveCompletedOrderLocally(params: {
     installments: params.payload.installments || 1,
     createdAt: new Date().toISOString(),
     fulfillmentStatus: 'PENDING_SUPPLIER',
-    supplierName: firstProduct?.supplierName || 'Shopee Brasil (Loja Oficial Inox SP)',
-    supplierUrl: firstProduct?.supplierUrl || 'https://shopee.com.br',
+    supplierName: firstProduct?.supplierName || 'Fornecedor Parceiro',
+    supplierUrl: firstProduct?.supplierUrl || '',
     items: mappedItems,
   };
 
@@ -708,10 +704,10 @@ function mapOrder(row: any): Order {
     items,
     fulfillmentStatus: (row.fulfillment_status as FulfillmentStatus) || 'PENDING_SUPPLIER',
     supplierOrderId: row.supplier_order_id,
-    supplierName: row.supplier_name || items[0]?.supplierName || 'Shopee Brasil',
+    supplierName: row.supplier_name || items[0]?.supplierName || 'Fornecedor Parceiro',
     supplierUrl: row.supplier_url || items[0]?.supplierUrl,
     trackingCode: row.tracking_code,
-    trackingCarrier: row.tracking_carrier || 'Shopee Xpress (SPX)',
+    trackingCarrier: row.tracking_carrier || 'Correios',
   };
 }
 

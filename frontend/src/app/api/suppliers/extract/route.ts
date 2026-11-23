@@ -1,25 +1,76 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { lookup } from 'node:dns/promises';
+import net from 'node:net';
 import { getAuthorizedAdminDb } from '@/lib/admin-api-auth';
+import {
+  detectSupplierPlatform,
+  inferSupplierNameFromUrl,
+  resolveSupplierPreset,
+} from '@/lib/suppliers';
+import { SupplierPlatform } from '@/types';
 
-const ALLOWED_SUPPLIER_DOMAINS = [
-  'shopee.com.br',
-  'shp.ee',
-  'tiktok.com',
-  'tiktokv.com',
-];
+const BLOCKED_HOST_SUFFIXES = ['.local', '.internal', '.localhost', '.arpa', '.lan', '.home'];
 
-function isAllowedSupplierUrl(rawUrl: string): boolean {
+function isBlockedIpv4(ip: string): boolean {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+    return true;
+  }
+  const [a, b] = parts;
+  if (a === 0 || a === 10 || a === 127) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true; // Carrier-grade NAT
+  if (a === 169 && b === 254) return true; // Link-local / cloud metadata
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 198 && (b === 18 || b === 19)) return true;
+  if (a >= 224) return true; // Multicast & reserved
+  return false;
+}
+
+function isBlockedIpAddress(ip: string): boolean {
+  const clean = ip.toLowerCase().trim();
+  if (net.isIPv4(clean)) return isBlockedIpv4(clean);
+  if (!net.isIPv6(clean)) return true;
+
+  if (clean === '::' || clean === '::1') return true;
+  if (clean.startsWith('::ffff:')) {
+    return isBlockedIpv4(clean.slice('::ffff:'.length));
+  }
+  // fc00::/7 Unique local, fe80::/10 Link-local, ff00::/8 Multicast
+  return (
+    clean.startsWith('fc') ||
+    clean.startsWith('fd') ||
+    clean.startsWith('fe8') ||
+    clean.startsWith('fe9') ||
+    clean.startsWith('fea') ||
+    clean.startsWith('feb') ||
+    clean.startsWith('ff')
+  );
+}
+
+function isSafePublicHttpsSyntax(rawUrl: string): boolean {
   try {
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== 'https:') return false;
-    if (parsed.username || parsed.password) return false;
+    if (parsed.username || parsed.password || parsed.port) return false;
 
     const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
-    if (!host || /^[\d.]+$/.test(host) || host.includes(':')) return false;
+    if (!host || host === 'localhost') return false;
+    if (net.isIP(host) !== 0 || /^[\d.]+$/.test(host)) return false;
+    if (BLOCKED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))) return false;
+    return host.includes('.');
+  } catch {
+    return false;
+  }
+}
 
-    return ALLOWED_SUPPLIER_DOMAINS.some(
-      (domain) => host === domain || host.endsWith(`.${domain}`)
-    );
+async function isAllowedSupplierUrl(rawUrl: string): Promise<boolean> {
+  if (!isSafePublicHttpsSyntax(rawUrl)) return false;
+  try {
+    const { hostname } = new URL(rawUrl);
+    const records = await lookup(hostname, { all: true });
+    if (!records || records.length === 0) return false;
+    return records.every((rec) => !isBlockedIpAddress(rec.address));
   } catch {
     return false;
   }
@@ -32,7 +83,7 @@ async function fetchAllowedSupplierHtml(
   let currentUrl = startUrl;
 
   for (let hop = 0; hop < 5; hop++) {
-    if (!isAllowedSupplierUrl(currentUrl)) return null;
+    if (!(await isAllowedSupplierUrl(currentUrl))) return null;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4500);
@@ -51,7 +102,7 @@ async function fetchAllowedSupplierHtml(
       const loc = response.headers.get('location');
       if (loc && response.status >= 300 && response.status < 400) {
         const nextUrl = new URL(loc, currentUrl).toString();
-        if (!isAllowedSupplierUrl(nextUrl)) return null;
+        if (!(await isAllowedSupplierUrl(nextUrl))) return null;
         currentUrl = nextUrl;
         continue;
       }
@@ -68,7 +119,7 @@ async function fetchAllowedSupplierHtml(
 }
 
 export interface ExtractedSupplierProduct {
-  platform: 'SHOPEE' | 'TIKTOK' | 'OTHER';
+  platform: SupplierPlatform;
   supplierName: string;
   resolvedUrl: string;
   suggestedName: string;
@@ -84,30 +135,23 @@ export interface ExtractedSupplierProduct {
   extractionMethod: string;
 }
 
-function detectPlatform(url: string): {
-  platform: 'SHOPEE' | 'TIKTOK' | 'OTHER';
+function detectPlatform(url: string, siteName?: string): {
+  platform: SupplierPlatform;
   supplierName: string;
   estimatedDeliveryDays: string;
 } {
-  const lower = url.toLowerCase();
-  if (lower.includes('shopee') || lower.includes('shp.ee')) {
-    return {
-      platform: 'SHOPEE',
-      supplierName: 'Shopee Brasil (Vendedor Nacional)',
-      estimatedDeliveryDays: '4 a 8 dias úteis (Shopee Xpress / SPX)',
-    };
-  }
-  if (lower.includes('tiktok')) {
-    return {
-      platform: 'TIKTOK',
-      supplierName: 'TikTok Shop Brasil',
-      estimatedDeliveryDays: '3 a 6 dias úteis (J&T Express / TikTok)',
-    };
-  }
+  const platform = detectSupplierPlatform(url, siteName);
+  const preset = resolveSupplierPreset(platform);
+  const supplierName =
+    siteName?.trim() ||
+    (platform === 'OTHER' || platform === 'DIRECT'
+      ? inferSupplierNameFromUrl(url)
+      : preset.defaultSupplierName);
+
   return {
-    platform: 'OTHER',
-    supplierName: 'Fornecedor Parceiro',
-    estimatedDeliveryDays: '5 a 10 dias úteis',
+    platform,
+    supplierName,
+    estimatedDeliveryDays: preset.defaultDeliveryDays,
   };
 }
 
@@ -678,11 +722,11 @@ export async function POST(req: NextRequest) {
       pastedText = rawInputUrl.replace(rawUrl, '').trim();
     }
 
-    if (rawUrl && !isAllowedSupplierUrl(rawUrl)) {
+    if (rawUrl && !(await isAllowedSupplierUrl(rawUrl))) {
       return NextResponse.json(
         {
           error:
-            'URL de fornecedor não permitida. Utilize links oficiais HTTPS da Shopee ou TikTok Shop.',
+            'URL inválida ou bloqueada. Utilize um link externo HTTPS público válido do fornecedor ou marketplace.',
         },
         { status: 400 }
       );
@@ -690,7 +734,9 @@ export async function POST(req: NextRequest) {
 
     const candidateUnwrapped = unwrapRedirectTarget(rawUrl);
     let finalUrl =
-      candidateUnwrapped && isAllowedSupplierUrl(candidateUnwrapped) ? candidateUnwrapped : rawUrl;
+      candidateUnwrapped && (await isAllowedSupplierUrl(candidateUnwrapped))
+        ? candidateUnwrapped
+        : rawUrl;
     let bestProductUrl = finalUrl;
     let suggestedName = '';
     let suggestedDescription = '';
@@ -723,12 +769,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 0B. Resolve short links (s.shopee.com.br, br.shp.ee, vt.tiktok.com, vm.tiktok.com) hop-by-hop
-    if (rawUrl && isAllowedSupplierUrl(rawUrl)) {
+    // 0B. Resolve short links (s.shopee.com.br, br.shp.ee, vt.tiktok.com, amzn.to, etc.) hop-by-hop
+    if (rawUrl && (await isAllowedSupplierUrl(rawUrl))) {
       try {
         let hopUrl = rawUrl;
         for (let hop = 0; hop < 5; hop++) {
-          if (!isAllowedSupplierUrl(hopUrl)) break;
+          if (!(await isAllowedSupplierUrl(hopUrl))) break;
 
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 3500);
@@ -747,10 +793,10 @@ export async function POST(req: NextRequest) {
           if (!loc) break;
 
           const nextUrl = new URL(loc, hopUrl).toString();
-          if (!isAllowedSupplierUrl(nextUrl)) break;
+          if (!(await isAllowedSupplierUrl(nextUrl))) break;
 
           const rawUnwrappedNext = unwrapRedirectTarget(nextUrl);
-          const unwrappedNext = isAllowedSupplierUrl(rawUnwrappedNext)
+          const unwrappedNext = (await isAllowedSupplierUrl(rawUnwrappedNext))
             ? rawUnwrappedNext
             : nextUrl;
 
@@ -801,7 +847,7 @@ export async function POST(req: NextRequest) {
         finalUrl = bestProductUrl;
       } else {
         const lookedUp = await lookupShopeeByItemId(slugAnalysis.shopeeItemId);
-        if (lookedUp.canonicalUrl && isAllowedSupplierUrl(lookedUp.canonicalUrl)) {
+        if (lookedUp.canonicalUrl && (await isAllowedSupplierUrl(lookedUp.canonicalUrl))) {
           bestProductUrl = lookedUp.canonicalUrl;
           finalUrl = lookedUp.canonicalUrl;
         }
@@ -818,11 +864,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 1. Fetch HTML using Social Preview Bot User-Agent (WhatsApp / Facebook External Hit)
-    if (finalUrl && isAllowedSupplierUrl(finalUrl)) {
+    // 1. Fetch HTML using Social Preview Bot + Standard Browser User-Agent
+    let extractedSiteName = '';
+    if (finalUrl && (await isAllowedSupplierUrl(finalUrl))) {
       const userAgents = [
         'WhatsApp/2.23.20.0 A',
         'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
       ];
 
       for (const ua of userAgents) {
@@ -834,7 +882,7 @@ export async function POST(req: NextRequest) {
 
           if (fetched.finalUrl) {
             const candidateRaw = unwrapRedirectTarget(fetched.finalUrl);
-            const candidateUrl = isAllowedSupplierUrl(candidateRaw)
+            const candidateUrl = (await isAllowedSupplierUrl(candidateRaw))
               ? candidateRaw
               : fetched.finalUrl;
             if (
@@ -900,6 +948,11 @@ export async function POST(req: NextRequest) {
               if (!suggestedDescription) {
                 suggestedDescription = metaDesc;
               }
+            }
+
+            const metaSite = extractMetaContent(html, ['og:site_name', 'application-name']);
+            if (metaSite && !extractedSiteName && metaSite.length < 40) {
+              extractedSiteName = cleanProductTitle(metaSite);
             }
 
             const metaPrice = extractMetaContent(html, [
@@ -983,7 +1036,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { platform, supplierName: defaultSupplierName, estimatedDeliveryDays } = detectPlatform(
-      bestProductUrl || finalUrl || rawUrl
+      bestProductUrl || finalUrl || rawUrl,
+      extractedSiteName
     );
     const finalSupplierName = customSellerName || defaultSupplierName;
 

@@ -1,6 +1,28 @@
 export type FinishType = 'silver' | 'gold' | 'black' | 'bicolor';
 
-export type SupplierPlatform = 'SHOPEE' | 'TIKTOK' | 'OTHER';
+export type SupplierPlatform =
+  | 'SHOPEE'
+  | 'TIKTOK'
+  | 'ALIEXPRESS'
+  | 'MERCADOLIVRE'
+  | 'SHEIN'
+  | 'TEMU'
+  | 'DIRECT'
+  | 'OTHER';
+
+export interface Supplier {
+  id: string;
+  name: string;
+  platform: SupplierPlatform;
+  websiteUrl?: string;
+  whatsapp?: string;
+  email?: string;
+  defaultCarrier: string;
+  estimatedDeliveryDays: string;
+  notes?: string;
+  isActive: boolean;
+  createdAt: string;
+}
 
 export interface Category {
   id: string;

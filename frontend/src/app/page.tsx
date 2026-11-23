@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { fetchProducts } from '@/lib/api';
 import { ProductCard } from '@/components/product/product-card';
-import { HeroStaticBanner, CollectionBannersGrid } from '@/components/home/hero-banners';
+import { HeroRotatingBanner } from '@/components/home/hero-banners';
 import { CategoryIcon, CategoryIconName } from '@/components/home/category-icons';
 import { EDITORIAL_HAND_BLUR_DATA_URL } from '@/lib/media-placeholders';
 import { ArrowRight } from 'lucide-react';
@@ -26,11 +26,10 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col w-full bg-brand-background text-brand-text">
-      {/* 1. Hero Estático (Oferta de Final de Ano) + 3 Banners Estáticos das Coleções */}
-      <HeroStaticBanner />
-      <CollectionBannersGrid />
+      {/* 1. Hero Rotativo Automático a cada 4s (Oferta de Final de Ano + Coleções, sem botões) */}
+      <HeroRotatingBanner />
 
-      {/* 2. Mais Vendidos (logo abaixo dos banners) */}
+      {/* 2. Mais Vendidos (logo abaixo do banner) */}
       <section className="py-12 sm:py-16 px-6 sm:px-10 lg:px-12 border-b border-brand-border bg-white">
         <div className="max-w-[1380px] mx-auto">
           <div className="flex items-end justify-between mb-8">
