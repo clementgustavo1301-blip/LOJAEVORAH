@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient, createSupabaseServerClient } from '@/lib/supabase/server';
+import {
+  checkRateLimit,
+  getClientIp,
+  rateLimitExceededResponse,
+} from '@/lib/security-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +50,19 @@ function escapeLikePattern(value: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  const rate = checkRateLimit({
+    scope: 'orders_track',
+    identifier: getClientIp(req),
+    limit: 20,
+    windowMs: 5 * 60 * 1000,
+  });
+  if (!rate.allowed) {
+    return rateLimitExceededResponse(
+      rate.retryAfterSeconds,
+      'Muitas consultas de rastreio em sequência. Aguarde alguns instantes.'
+    );
+  }
+
   const q = (req.nextUrl.searchParams.get('q') || '').trim().toUpperCase();
 
   // Bloqueia buscas curtas, buscas por e-mail (@) e caracteres de filtro/wildcard PostgREST

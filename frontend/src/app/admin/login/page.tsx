@@ -4,12 +4,18 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '@/components/ui/logo';
+import {
+  TurnstileWidget,
+  isTurnstileClientEnabled,
+} from '@/components/security/turnstile-widget';
 import { Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +35,12 @@ export default function AdminLoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (isTurnstileClientEnabled && !captchaToken) {
+      setError('Complete a verificação anti-robô antes de entrar.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -43,10 +55,12 @@ export default function AdminLoginPage() {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
+        options: captchaToken ? { captchaToken } : undefined,
       });
 
       if (signInError || !data.session) {
         setError('E-mail ou senha incorretos.');
+        setCaptchaReset((v) => v + 1);
         setLoading(false);
         return;
       }
@@ -127,6 +141,8 @@ export default function AdminLoginPage() {
               </button>
             </div>
           </div>
+
+          <TurnstileWidget onToken={setCaptchaToken} resetSignal={captchaReset} />
 
           <button
             type="submit"

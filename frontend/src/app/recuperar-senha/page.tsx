@@ -3,11 +3,18 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { AuthShell } from '@/components/auth/auth-shell';
+import {
+  TurnstileWidget,
+  isTurnstileClientEnabled,
+} from '@/components/security/turnstile-widget';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 
 export default function RecuperarSenhaPage() {
   const [email, setEmail] = useState('');
+  const [honeypot, setHoneypot] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,6 +22,17 @@ export default function RecuperarSenhaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (honeypot.trim().length > 0) {
+      setError('Requisição bloqueada pela verificação de segurança.');
+      return;
+    }
+
+    if (isTurnstileClientEnabled && !captchaToken) {
+      setError('Complete a verificação anti-robô antes de continuar.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -28,11 +46,12 @@ export default function RecuperarSenhaPage() {
       const redirectTo = `${window.location.origin}/auth/callback?next=/redefinir-senha`;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
-        { redirectTo }
+        { redirectTo, captchaToken: captchaToken || undefined }
       );
 
       if (resetError) {
         setError('Não foi possível enviar o e-mail de recuperação. Tente novamente em instantes.');
+        setCaptchaReset((v) => v + 1);
         setSubmitting(false);
         return;
       }
@@ -40,6 +59,7 @@ export default function RecuperarSenhaPage() {
       setSent(true);
     } catch {
       setError('Erro inesperado ao solicitar recuperação de senha.');
+      setCaptchaReset((v) => v + 1);
     } finally {
       setSubmitting(false);
     }
@@ -97,6 +117,19 @@ export default function RecuperarSenhaPage() {
               className="w-full h-11 px-3.5 bg-brand-background border border-brand-border text-sm text-brand-text focus:border-brand-text focus:bg-white outline-none transition-colors"
             />
           </div>
+
+          <input
+            type="text"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+            className="sr-only"
+          />
+
+          <TurnstileWidget onToken={setCaptchaToken} resetSignal={captchaReset} />
 
           <button
             type="submit"

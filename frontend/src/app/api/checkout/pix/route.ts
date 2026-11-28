@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
+  checkRateLimit,
+  getClientIp,
+  isHoneypotTripped,
+  isTrustedSameOrigin,
+  rateLimitExceededResponse,
+  verifyTurnstileToken,
+} from '@/lib/security-guard';
+import {
   calculateServerOrderTotals,
   createMercadoPagoTransaction,
   generateOrderNumber,
@@ -26,7 +34,44 @@ async function resolveAuthenticatedUserId(): Promise<string | null> {
  */
 export async function POST(req: Request) {
   try {
+    if (!isTrustedSameOrigin(req)) {
+      return NextResponse.json(
+        { success: false, error: 'Origem da requisição não autorizada.' },
+        { status: 403 }
+      );
+    }
+
+    const clientIp = getClientIp(req);
+    const rate = checkRateLimit({
+      scope: 'checkout_pix',
+      identifier: clientIp,
+      limit: 8,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (!rate.allowed) {
+      return rateLimitExceededResponse(
+        rate.retryAfterSeconds,
+        'Muitas solicitações de PIX em poucos minutos. Aguarde alguns instantes.'
+      );
+    }
+
     const body = await req.json();
+
+    if (isHoneypotTripped(body)) {
+      return NextResponse.json(
+        { success: false, error: 'Requisição bloqueada pela proteção anti-robô.' },
+        { status: 400 }
+      );
+    }
+
+    const turnstile = await verifyTurnstileToken(body.captchaToken, clientIp);
+    if (!turnstile.ok) {
+      return NextResponse.json(
+        { success: false, error: turnstile.error || 'Falha na verificação anti-robô.' },
+        { status: 400 }
+      );
+    }
+
     const orderNumber = String(body.orderNumber || generateOrderNumber());
     const customerName = String(body.customerName || 'Cliente').trim();
     const customerEmail = String(body.customerEmail || '').trim();

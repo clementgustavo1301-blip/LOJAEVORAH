@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { GoogleAuthButton } from '@/components/auth/google-auth-button';
+import {
+  TurnstileWidget,
+  isTurnstileClientEnabled,
+} from '@/components/security/turnstile-widget';
 import { useAuth } from '@/context/auth-context';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { sanitizeRedirectPath } from '@/lib/auth-roles';
@@ -22,6 +26,9 @@ function CadastroFormContent() {
   const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [honeypot, setHoneypot] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +60,16 @@ function CadastroFormContent() {
       return;
     }
 
+    if (honeypot.trim().length > 0) {
+      setError('Requisição bloqueada pela verificação de segurança.');
+      return;
+    }
+
+    if (isTurnstileClientEnabled && !captchaToken) {
+      setError('Complete a verificação anti-robô antes de criar sua conta.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -70,6 +87,7 @@ function CadastroFormContent() {
         password,
         options: {
           emailRedirectTo,
+          captchaToken: captchaToken || undefined,
           data: {
             full_name: cleanName,
           },
@@ -80,9 +98,12 @@ function CadastroFormContent() {
         const msg = signUpError.message.toLowerCase();
         if (msg.includes('already registered') || msg.includes('already exists')) {
           setError('Este e-mail já possui uma conta cadastrada. Tente entrar ou recuperar sua senha.');
+        } else if (msg.includes('captcha')) {
+          setError('Verificação anti-robô expirada. Refaça a verificação e tente novamente.');
         } else {
           setError(signUpError.message || 'Não foi possível criar sua conta.');
         }
+        setCaptchaReset((v) => v + 1);
         setSubmitting(false);
         return;
       }
@@ -98,6 +119,7 @@ function CadastroFormContent() {
       setSubmitting(false);
     } catch {
       setError('Erro inesperado ao criar conta. Tente novamente.');
+      setCaptchaReset((v) => v + 1);
       setSubmitting(false);
     }
   };
@@ -270,6 +292,19 @@ function CadastroFormContent() {
             <span>Mínimo de 6 caracteres</span>
           </div>
         )}
+
+        <input
+          type="text"
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          value={honeypot}
+          onChange={(e) => setHoneypot(e.target.value)}
+          className="sr-only"
+        />
+
+        <TurnstileWidget onToken={setCaptchaToken} resetSignal={captchaReset} />
 
         <p className="text-[11px] text-brand-textMuted leading-relaxed">
           Ao criar sua conta, você concorda com nossa{' '}

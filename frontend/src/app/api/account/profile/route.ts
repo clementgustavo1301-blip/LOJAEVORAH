@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedCustomerContext } from '@/lib/customer-api-auth';
 import { isEmailVerifiedUser, isValidCpfDigits, resolveUserRole } from '@/lib/auth-roles';
+import {
+  checkRateLimit,
+  getClientIp,
+  isTrustedSameOrigin,
+  rateLimitExceededResponse,
+} from '@/lib/security-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +54,19 @@ export async function GET() {
 }
 
 export async function PATCH(req: Request) {
+  if (!isTrustedSameOrigin(req)) {
+    return NextResponse.json({ error: 'Origem não autorizada.' }, { status: 403 });
+  }
+  const rate = checkRateLimit({
+    scope: 'account_profile_patch',
+    identifier: getClientIp(req),
+    limit: 20,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!rate.allowed) {
+    return rateLimitExceededResponse(rate.retryAfterSeconds);
+  }
+
   const ctx = await getAuthenticatedCustomerContext();
   if ('error' in ctx) return ctx.error;
 

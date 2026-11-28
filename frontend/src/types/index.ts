@@ -214,4 +214,6 @@ export interface OrderCreatePayload {
     kitId?: string;
   }>;
   couponCode?: string;
+  captchaToken?: string;
+  website?: string;
 }

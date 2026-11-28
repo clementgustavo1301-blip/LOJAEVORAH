@@ -607,6 +607,8 @@ export async function createOrder(
       paymentMethod: payload.paymentMethod,
       items: enrichedItems,
       couponCode: payload.couponCode,
+      captchaToken: payload.captchaToken,
+      website: payload.website,
       simulatedOutcome: payload.simulatedOutcome,
       installments: payload.installments || 1,
     }),

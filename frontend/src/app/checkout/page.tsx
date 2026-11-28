@@ -26,6 +26,10 @@ import {
   hasMercadoPagoPublicKey,
 } from '@/components/checkout/mercado-pago-card-brick';
 import { TrustSeals } from '@/components/ui/trust-seals';
+import {
+  TurnstileWidget,
+  isTurnstileClientEnabled,
+} from '@/components/security/turnstile-widget';
 import { CustomerAddress, OrderCreatePayload, OrderPaymentStatus } from '@/types';
 import {
   CreditCard,
@@ -107,6 +111,9 @@ export default function CheckoutPage() {
   });
 
   const [simulatedOutcome, setSimulatedOutcome] = useState<'approved' | 'pending'>('approved');
+  const [honeypot, setHoneypot] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [orderConfirmed, setOrderConfirmed] = useState<ConfirmedOrderState | null>(null);
@@ -307,7 +314,9 @@ export default function CheckoutPage() {
       kitId: i.kitId,
     })),
     couponCode: coupon,
-  }), [formData, items, coupon]);
+    captchaToken: captchaToken || undefined,
+    website: honeypot,
+  }), [formData, items, coupon, captchaToken, honeypot]);
 
   const applyConfirmedPayment = useCallback(
     (orderNumber: string, paymentStatus: OrderPaymentStatus, paymentId?: string) => {
@@ -506,6 +515,14 @@ export default function CheckoutPage() {
 
   const handleFinalizeOrder = async () => {
     setCheckoutError(null);
+    if (honeypot.trim().length > 0) {
+      setCheckoutError('Requisição bloqueada pela proteção anti-robô.');
+      return;
+    }
+    if (isTurnstileClientEnabled && !captchaToken) {
+      setCheckoutError('Complete a verificação anti-robô antes de finalizar o pedido.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const payload = buildOrderPayload();
@@ -528,6 +545,7 @@ export default function CheckoutPage() {
       setStep(4);
       clearCart();
     } catch (err) {
+      setCaptchaReset((v) => v + 1);
       setCheckoutError(
         err instanceof Error
           ? err.message
@@ -540,6 +558,14 @@ export default function CheckoutPage() {
 
   const handleCardBrickSubmit = async (brickData: MercadoPagoCardSubmitData) => {
     setCheckoutError(null);
+    if (honeypot.trim().length > 0) {
+      setCheckoutError('Requisição bloqueada pela proteção anti-robô.');
+      throw new Error('Bloqueado por proteção anti-robô.');
+    }
+    if (isTurnstileClientEnabled && !captchaToken) {
+      setCheckoutError('Complete a verificação anti-robô antes de finalizar o pagamento.');
+      throw new Error('Verificação anti-robô obrigatória.');
+    }
     setIsSubmitting(true);
     try {
       const payload = buildOrderPayload();
@@ -587,6 +613,7 @@ export default function CheckoutPage() {
       setStep(4);
       clearCart();
     } catch (err) {
+      setCaptchaReset((v) => v + 1);
       setCheckoutError(
         err instanceof Error ? err.message : 'Erro ao processar pagamento com cartão.'
       );
@@ -1103,6 +1130,22 @@ export default function CheckoutPage() {
                         onErrorMessage={setCheckoutError}
                       />
                     )}
+                    <input
+                      type="text"
+                      name="website"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      aria-hidden="true"
+                      value={honeypot}
+                      onChange={(e) => setHoneypot(e.target.value)}
+                      className="sr-only"
+                    />
+
+                    <TurnstileWidget
+                      onToken={setCaptchaToken}
+                      resetSignal={captchaReset}
+                      className="pt-2"
+                    />
                   </div>
                 )}
 

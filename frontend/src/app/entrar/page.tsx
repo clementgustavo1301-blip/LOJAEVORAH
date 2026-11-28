@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { GoogleAuthButton } from '@/components/auth/google-auth-button';
+import {
+  TurnstileWidget,
+  isTurnstileClientEnabled,
+} from '@/components/security/turnstile-widget';
 import { useAuth } from '@/context/auth-context';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { sanitizeRedirectPath } from '@/lib/auth-roles';
@@ -21,6 +25,9 @@ function EntrarFormContent() {
 
   const [email, setEmail] = useState(searchParams.get('email') || '');
   const [password, setPassword] = useState('');
+  const [honeypot, setHoneypot] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(
@@ -38,6 +45,17 @@ function EntrarFormContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (honeypot.trim().length > 0) {
+      setError('Requisição bloqueada pela verificação de segurança.');
+      return;
+    }
+
+    if (isTurnstileClientEnabled && !captchaToken) {
+      setError('Complete a verificação anti-robô antes de entrar.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -51,15 +69,19 @@ function EntrarFormContent() {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
+        options: captchaToken ? { captchaToken } : undefined,
       });
 
       if (signInError || !data.session) {
         const msg = signInError?.message?.toLowerCase() || '';
         if (msg.includes('email not confirmed')) {
           setError('Confirme seu e-mail através do link enviado na caixa de entrada antes de entrar.');
+        } else if (msg.includes('captcha')) {
+          setError('Verificação anti-robô expirada. Refaça a verificação e tente novamente.');
         } else {
           setError('E-mail ou senha incorretos. Confira seus dados e tente novamente.');
         }
+        setCaptchaReset((v) => v + 1);
         setSubmitting(false);
         return;
       }
@@ -69,6 +91,7 @@ function EntrarFormContent() {
       router.refresh();
     } catch {
       setError('Erro inesperado ao entrar. Tente novamente.');
+      setCaptchaReset((v) => v + 1);
       setSubmitting(false);
     }
   };
@@ -172,6 +195,19 @@ function EntrarFormContent() {
             </button>
           </div>
         </div>
+
+        <input
+          type="text"
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          value={honeypot}
+          onChange={(e) => setHoneypot(e.target.value)}
+          className="sr-only"
+        />
+
+        <TurnstileWidget onToken={setCaptchaToken} resetSignal={captchaReset} />
 
         <button
           type="submit"
