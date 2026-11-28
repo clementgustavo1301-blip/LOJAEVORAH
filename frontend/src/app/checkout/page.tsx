@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/cart-context';
 import { useAuth } from '@/context/auth-context';
+import { calculateOrderDiscounts } from '@/lib/kit-pricing';
 import {
   createOrder,
   saveCompletedOrderLocally,
@@ -71,7 +72,16 @@ function isValidCpf(raw: string): boolean {
 }
 
 export default function CheckoutPage() {
-  const { items, subtotal, discount, shippingFee, total, coupon, clearCart } = useCart();
+  const {
+    items,
+    subtotal,
+    kitSubtotal,
+    kitItemCount,
+    kitSettings,
+    shippingFee,
+    coupon,
+    clearCart,
+  } = useCart();
   const { profile, isAuthenticated, supabaseConfigured } = useAuth();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -254,8 +264,20 @@ export default function CheckoutPage() {
     }));
   };
 
-  const pixDiscount = formData.paymentMethod === 'PIX' ? (subtotal - discount) * 0.05 : 0;
-  const finalTotal = Math.max(0, total - pixDiscount);
+  const checkoutPricing = calculateOrderDiscounts({
+    subtotal,
+    kitSubtotal,
+    kitItemCount,
+    couponCode: coupon,
+    paymentMethod: formData.paymentMethod,
+    kitSettings,
+  });
+  const kitDiscount = checkoutPricing.kitDiscount;
+  const kitDiscountPercent = checkoutPricing.kitDiscountPercent;
+  const couponDiscount = checkoutPricing.couponDiscount;
+  const discount = kitDiscount + couponDiscount;
+  const pixDiscount = checkoutPricing.pixDiscount;
+  const finalTotal = Math.max(0, checkoutPricing.total + shippingFee);
   const isBrickActiveStep =
     step === 3 && formData.paymentMethod === 'CREDIT_CARD' && hasMercadoPagoPublicKey;
 
@@ -281,6 +303,8 @@ export default function CheckoutPage() {
       finish: i.finish,
       size: i.size,
       quantity: i.quantity,
+      isKit: Boolean(i.kitId),
+      kitId: i.kitId,
     })),
     couponCode: coupon,
   }), [formData, items, coupon]);
@@ -1177,16 +1201,30 @@ export default function CheckoutPage() {
                     <span>Subtotal</span>
                     <span className="text-brand-text">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
                   </div>
-                  {discount > 0 && (
+                  {kitDiscount > 0 && (
                     <div className="flex justify-between text-emerald-700 font-medium">
-                      <span>Cupom</span>
-                      <span>- R$ {discount.toFixed(2).replace('.', ',')}</span>
+                      <span>Desconto Kit ({kitDiscountPercent}%)</span>
+                      <span>- R$ {kitDiscount.toFixed(2).replace('.', ',')}</span>
                     </div>
                   )}
-                  {formData.paymentMethod === 'PIX' && (
+                  {couponDiscount > 0 && (
                     <div className="flex justify-between text-emerald-700 font-medium">
-                      <span>Desconto PIX (5%)</span>
+                      <span>Cupom</span>
+                      <span>- R$ {couponDiscount.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  )}
+                  {formData.paymentMethod === 'PIX' && pixDiscount > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-medium">
+                      <span>
+                        Desconto PIX{checkoutPricing.kitDiscountCapApplied ? ' (teto 10% no kit)' : ' (5%)'}
+                      </span>
                       <span>- R$ {pixDiscount.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  )}
+                  {formData.paymentMethod === 'PIX' && pixDiscount === 0 && kitDiscount > 0 && (
+                    <div className="flex justify-between text-brand-textMuted text-[11px]">
+                      <span>Desconto máximo do Kit (10%) já aplicado</span>
+                      <span>PIX sem acréscimo</span>
                     </div>
                   )}
                   <div className="flex justify-between">

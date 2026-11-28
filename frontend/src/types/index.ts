@@ -63,6 +63,23 @@ export interface Product {
   estimatedDeliveryDays?: string;
 }
 
+export interface KitTier {
+  minItems: number;
+  discountPercent: number;
+}
+
+export interface KitSettings {
+  enabled: boolean;
+  title: string;
+  subtitle: string;
+  minItems: number;
+  maxItems: number;
+  maxDiscountPercent: number;
+  tiers: KitTier[];
+  allowCouponStacking: boolean;
+  updatedAt?: string;
+}
+
 export interface CartItem {
   id: string;
   productId: string;
@@ -71,6 +88,8 @@ export interface CartItem {
   size?: string;
   quantity: number;
   price: number;
+  kitId?: string;
+  kitLabel?: string;
 }
 
 export interface ShippingAddress {
@@ -188,6 +207,8 @@ export interface OrderCreatePayload {
     finish: string;
     size?: string;
     quantity: number;
+    isKit?: boolean;
+    kitId?: string;
   }>;
   couponCode?: string;
 }

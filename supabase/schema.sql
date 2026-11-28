@@ -448,3 +448,42 @@ INSERT INTO public.categories (id, name, slug, description, image_url) VALUES
   ('cat-brincos', 'Brincos', 'brincos', 'Argolas hipoalergênicas', 'https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=800&q=80'),
   ('cat-acessorios', 'Acessórios', 'acessorios', 'Acessórios unissex', 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=800&q=80')
 ON CONFLICT (id) DO NOTHING;
+
+-- 9. Regras do "Monte seu Kit" (teto rígido de 10% OFF no banco)
+CREATE TABLE IF NOT EXISTS public.kit_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  title TEXT NOT NULL DEFAULT 'Monte seu Kit EVORAH',
+  subtitle TEXT NOT NULL DEFAULT 'Combine correntes, pulseiras, anéis e pingentes no mesmo estilo e desbloqueie até 10% OFF.',
+  min_items INTEGER NOT NULL DEFAULT 2 CHECK (min_items >= 2 AND min_items <= 5),
+  max_items INTEGER NOT NULL DEFAULT 5 CHECK (max_items >= 2 AND max_items <= 10),
+  max_discount_percent NUMERIC(5, 2) NOT NULL DEFAULT 10.00 CHECK (max_discount_percent >= 0 AND max_discount_percent <= 10),
+  tiers JSONB NOT NULL DEFAULT '[{"minItems":2,"discountPercent":5},{"minItems":3,"discountPercent":8},{"minItems":4,"discountPercent":10}]'::jsonb,
+  allow_coupon_stacking BOOLEAN NOT NULL DEFAULT FALSE,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT kit_settings_min_lte_max CHECK (min_items <= max_items)
+);
+
+GRANT SELECT ON public.kit_settings TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.kit_settings TO authenticated;
+
+DROP TRIGGER IF EXISTS trg_kit_settings_updated_at ON public.kit_settings;
+CREATE TRIGGER trg_kit_settings_updated_at
+  BEFORE UPDATE ON public.kit_settings
+  FOR EACH ROW EXECUTE FUNCTION private.touch_updated_at();
+
+ALTER TABLE public.kit_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Leitura pública de regras de kit" ON public.kit_settings;
+CREATE POLICY "Leitura pública de regras de kit" ON public.kit_settings FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Admin inserção de regras de kit" ON public.kit_settings;
+CREATE POLICY "Admin inserção de regras de kit" ON public.kit_settings FOR INSERT TO authenticated WITH CHECK ((SELECT private.is_admin()));
+
+DROP POLICY IF EXISTS "Admin atualização de regras de kit" ON public.kit_settings;
+CREATE POLICY "Admin atualização de regras de kit" ON public.kit_settings FOR UPDATE TO authenticated USING ((SELECT private.is_admin())) WITH CHECK ((SELECT private.is_admin()));
+
+DROP POLICY IF EXISTS "Admin exclusão de regras de kit" ON public.kit_settings;
+CREATE POLICY "Admin exclusão de regras de kit" ON public.kit_settings FOR DELETE TO authenticated USING ((SELECT private.is_admin()));
+
+INSERT INTO public.kit_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;

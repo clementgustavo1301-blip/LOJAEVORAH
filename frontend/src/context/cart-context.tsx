@@ -1,10 +1,21 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Product, CartItem, FinishType } from '@/types';
+import { Product, CartItem, FinishType, KitSettings } from '@/types';
 import { fetchProducts } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { useAuth } from '@/context/auth-context';
+import {
+  calculateOrderDiscounts,
+  DEFAULT_KIT_SETTINGS,
+  sanitizeKitSettings,
+} from '@/lib/kit-pricing';
+
+export interface KitSelectionEntry {
+  product: Product;
+  finish: FinishType;
+  size?: string;
+}
 
 interface CartContextType {
   items: CartItem[];
@@ -15,10 +26,17 @@ interface CartContextType {
     quantity?: number,
     openMiniCart?: boolean
   ) => void;
+  addKitToCart: (entries: KitSelectionEntry[], openMiniCart?: boolean) => void;
   removeFromCart: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   clearCart: () => void;
   subtotal: number;
+  kitSubtotal: number;
+  kitItemCount: number;
+  hasKitItems: boolean;
+  kitDiscountPercent: number;
+  kitDiscount: number;
+  couponDiscount: number;
   discount: number;
   shippingFee: number;
   freeShippingThreshold: number;
@@ -28,6 +46,7 @@ interface CartContextType {
   coupon: string;
   applyCoupon: (code: string) => { success: boolean; message: string };
   removeCoupon: () => void;
+  kitSettings: KitSettings;
   wishlist: string[];
   toggleWishlist: (productId: string) => void;
   isWishlisted: (productId: string) => boolean;
@@ -42,6 +61,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [coupon, setCoupon] = useState<string>('');
+  const [kitSettings, setKitSettings] = useState<KitSettings>(DEFAULT_KIT_SETTINGS);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [isMiniCartOpen, setIsMiniCartOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -51,6 +71,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     wishlistRef.current = wishlist;
   }, [wishlist]);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/kit-settings', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data?.settings) {
+          setKitSettings(sanitizeKitSettings(data.settings));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -181,6 +216,55 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const addKitToCart = useCallback(
+    (entries: KitSelectionEntry[], openMiniCart = true) => {
+      if (!Array.isArray(entries) || entries.length === 0) return;
+
+      const kitId = `kit-${Date.now()}`;
+      const kitLabel = `Kit EVORAH (${entries.length} peças)`;
+
+      setItems((prev) => {
+        const next = [...prev];
+        for (const entry of entries) {
+          const unitPrice = entry.product.promotionalPrice || entry.product.price;
+          const itemId = `${kitId}-${entry.product.id}-${entry.finish}-${entry.size || 'default'}`;
+          const existingIdx = next.findIndex((i) => i.id === itemId);
+          if (existingIdx >= 0) {
+            next[existingIdx] = {
+              ...next[existingIdx],
+              quantity: next[existingIdx].quantity + 1,
+            };
+          } else {
+            next.push({
+              id: itemId,
+              productId: entry.product.id,
+              product: entry.product,
+              finish: entry.finish,
+              size: entry.size,
+              quantity: 1,
+              price: unitPrice,
+              kitId,
+              kitLabel,
+            });
+          }
+        }
+        return next;
+      });
+
+      if (!kitSettings.allowCouponStacking) {
+        setCoupon('');
+        try {
+          localStorage.removeItem('brand_name_coupon');
+        } catch {}
+      }
+
+      if (openMiniCart) {
+        setIsMiniCartOpen(true);
+      }
+    },
+    [kitSettings.allowCouponStacking]
+  );
+
   const removeFromCart = useCallback((itemId: string) => {
     setItems((prev) => prev.filter((i) => i.id !== itemId));
   }, []);
@@ -199,24 +283,35 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems([]);
   }, []);
 
-  const applyCoupon = useCallback((code: string) => {
-    const clean = code.trim().toUpperCase();
-    if (clean === 'BEMVINDO10') {
-      setCoupon('BEMVINDO10');
-      try {
-        localStorage.setItem('brand_name_coupon', 'BEMVINDO10');
-      } catch {}
-      return { success: true, message: 'Cupom de 10% aplicado com sucesso!' };
-    }
-    if (clean === 'INOX15') {
-      setCoupon('INOX15');
-      try {
-        localStorage.setItem('brand_name_coupon', 'INOX15');
-      } catch {}
-      return { success: true, message: 'Cupom exclusivo de 15% aplicado!' };
-    }
-    return { success: false, message: 'Cupom inválido ou expirado.' };
-  }, []);
+  const applyCoupon = useCallback(
+    (code: string) => {
+      const hasActiveKit = items.some((i) => Boolean(i.kitId));
+      if (hasActiveKit && !kitSettings.allowCouponStacking) {
+        return {
+          success: false,
+          message: `O desconto do Kit EVORAH (máximo ${kitSettings.maxDiscountPercent}% OFF) não acumula com cupons.`,
+        };
+      }
+
+      const clean = code.trim().toUpperCase();
+      if (clean === 'BEMVINDO10') {
+        setCoupon('BEMVINDO10');
+        try {
+          localStorage.setItem('brand_name_coupon', 'BEMVINDO10');
+        } catch {}
+        return { success: true, message: 'Cupom de 10% aplicado com sucesso!' };
+      }
+      if (clean === 'INOX15') {
+        setCoupon('INOX15');
+        try {
+          localStorage.setItem('brand_name_coupon', 'INOX15');
+        } catch {}
+        return { success: true, message: 'Cupom exclusivo de 15% aplicado!' };
+      }
+      return { success: false, message: 'Cupom inválido ou expirado.' };
+    },
+    [items, kitSettings.allowCouponStacking, kitSettings.maxDiscountPercent]
+  );
 
   const removeCoupon = useCallback(() => {
     setCoupon('');
@@ -258,18 +353,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue = useMemo<CartContextType>(() => {
     const subtotal = items.reduce((acc, it) => acc + it.price * it.quantity, 0);
-    let discount = 0;
-    const upperCoupon = coupon.toUpperCase();
-    if (upperCoupon === 'BEMVINDO10') {
-      discount = subtotal * 0.1;
-    } else if (upperCoupon === 'INOX15') {
-      discount = subtotal * 0.15;
-    }
+    const kitItems = items.filter((it) => Boolean(it.kitId));
+    const kitSubtotal = kitItems.reduce((acc, it) => acc + it.price * it.quantity, 0);
+    const kitItemCount = kitItems.reduce((acc, it) => acc + it.quantity, 0);
+    const hasKitItems = kitItemCount > 0;
 
+    const pricing = calculateOrderDiscounts({
+      subtotal,
+      kitSubtotal,
+      kitItemCount,
+      couponCode: coupon,
+      paymentMethod: 'CREDIT_CARD',
+      kitSettings,
+    });
+
+    const discount = pricing.totalDiscount;
     const freeShippingThreshold = 0;
     const shippingFee = 0;
     const freeShippingRemaining = 0;
-    const total = Math.max(0, subtotal - discount + shippingFee);
+    const total = Math.max(0, pricing.total + shippingFee);
     const installmentValue = total > 0 ? (total / 6).toFixed(2).replace('.', ',') : '0,00';
     const installmentsText = `em até 6x de R$ ${installmentValue} sem juros`;
     const totalCount = items.reduce((acc, it) => acc + it.quantity, 0);
@@ -277,10 +379,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return {
       items,
       addToCart,
+      addKitToCart,
       removeFromCart,
       updateQuantity,
       clearCart,
       subtotal,
+      kitSubtotal,
+      kitItemCount,
+      hasKitItems,
+      kitDiscountPercent: pricing.kitDiscountPercent,
+      kitDiscount: pricing.kitDiscount,
+      couponDiscount: pricing.couponDiscount,
       discount,
       shippingFee,
       freeShippingThreshold,
@@ -290,6 +399,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       coupon,
       applyCoupon,
       removeCoupon,
+      kitSettings,
       wishlist,
       toggleWishlist,
       isWishlisted,
@@ -300,9 +410,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [
     items,
     coupon,
+    kitSettings,
     wishlist,
     isMiniCartOpen,
     addToCart,
+    addKitToCart,
     removeFromCart,
     updateQuantity,
     clearCart,

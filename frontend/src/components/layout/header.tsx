@@ -62,7 +62,8 @@ export function Header() {
     { name: 'Pingentes', href: '/produtos?category=pingentes' },
     { name: 'Pulseiras', href: '/produtos?category=pulseiras' },
     { name: 'Brincos', href: '/produtos?category=brincos' },
-    { name: 'Mais Vendidos', href: '/produtos?bestSeller=true', highlight: true },
+    { name: 'Monte seu Kit', href: '/monte-seu-kit', highlight: true },
+    { name: 'Mais Vendidos', href: '/produtos?bestSeller=true' },
   ];
 
   return (

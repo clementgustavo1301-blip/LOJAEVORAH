@@ -4,12 +4,19 @@ import os from 'node:os';
 import path from 'node:path';
 import type { OrderPaymentStatus, ShippingAddress } from '@/types';
 import { createSupabaseAdminClient } from './supabase/server';
+import {
+  calculateOrderDiscounts,
+  DEFAULT_KIT_SETTINGS,
+  mapKitSettingsRow,
+} from './kit-pricing';
 
 export interface ServerOrderItemInput {
   productId: string;
   finish?: string;
   size?: string;
   quantity: number;
+  isKit?: boolean;
+  kitId?: string;
   fallbackName?: string;
   fallbackPrice?: number;
 }
@@ -211,6 +218,9 @@ export async function calculateServerOrderTotals(params: {
   }
 
   let subtotal = 0;
+  let kitSubtotal = 0;
+  let kitItemCount = 0;
+
   const resolvedItems = items.map((item) => {
     const quantity = Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)));
     const catalogMatch = dbPrices.get(item.productId) || TRUSTED_PRODUCT_PRICES[item.productId];
@@ -226,7 +236,13 @@ export async function calculateServerOrderTotals(params: {
       }
     }
 
-    subtotal += unitPrice * quantity;
+    const lineTotal = unitPrice * quantity;
+    subtotal += lineTotal;
+    if (item.isKit || item.kitId) {
+      kitSubtotal += lineTotal;
+      kitItemCount += quantity;
+    }
+
     return {
       productId: item.productId,
       productName,
@@ -238,16 +254,48 @@ export async function calculateServerOrderTotals(params: {
   });
 
   subtotal = roundCurrency(subtotal);
-  const couponUpper = params.couponCode?.trim().toUpperCase();
-  const couponDiscount =
-    couponUpper === 'BEMVINDO10' ? subtotal * 0.1 : couponUpper === 'INOX15' ? subtotal * 0.15 : 0;
-  const afterCoupon = Math.max(0, subtotal - couponDiscount);
-  const pixDiscount = params.paymentMethod === 'PIX' ? afterCoupon * 0.05 : 0;
-  const discount = roundCurrency(couponDiscount + pixDiscount);
-  const shippingCost = 0;
-  const total = roundCurrency(Math.max(0.01, afterCoupon - pixDiscount + shippingCost));
+  kitSubtotal = roundCurrency(kitSubtotal);
 
-  return { subtotal, discount, shippingCost, total, resolvedItems };
+  let kitSettings = DEFAULT_KIT_SETTINGS;
+  if (supabase && kitItemCount > 0) {
+    try {
+      const { data: kitRow } = await supabase
+        .from('kit_settings')
+        .select(
+          'id, enabled, title, subtitle, min_items, max_items, max_discount_percent, tiers, allow_coupon_stacking, updated_at'
+        )
+        .eq('id', 'default')
+        .maybeSingle();
+      if (kitRow) {
+        kitSettings = mapKitSettingsRow(kitRow as Record<string, unknown>);
+      }
+    } catch {
+      kitSettings = DEFAULT_KIT_SETTINGS;
+    }
+  }
+
+  const discounts = calculateOrderDiscounts({
+    subtotal,
+    kitSubtotal,
+    kitItemCount,
+    couponCode: params.couponCode,
+    paymentMethod: params.paymentMethod,
+    kitSettings,
+  });
+
+  const discount = discounts.totalDiscount;
+  const shippingCost = 0;
+  const total = roundCurrency(Math.max(0.01, discounts.total + shippingCost));
+
+  return {
+    subtotal,
+    discount,
+    kitDiscount: discounts.kitDiscount,
+    kitDiscountPercent: discounts.kitDiscountPercent,
+    shippingCost,
+    total,
+    resolvedItems,
+  };
 }
 
 export async function persistServerOrder(

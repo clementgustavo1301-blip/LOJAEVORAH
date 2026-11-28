@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Package, Store, Truck, LogOut, KeyRound, ExternalLink, X, Check } from 'lucide-react';
+import { Package, Store, Truck, Layers, LogOut, KeyRound, ExternalLink, X, Check } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -172,6 +172,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 <Truck className="w-4 h-4" />
                 <span>Pedidos</span>
+              </Link>
+              <Link
+                href="/admin/kits"
+                className={`px-3 py-1.5 rounded-sm transition-colors flex items-center gap-1.5 ${
+                  pathname?.startsWith('/admin/kits')
+                    ? 'bg-white/20 text-white font-medium'
+                    : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <Layers className="w-4 h-4" />
+                <span>Kits</span>
               </Link>
             </nav>
           </div>

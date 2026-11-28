@@ -65,6 +65,11 @@ export function Footer() {
                 Brincos
               </Link>
             </li>
+            <li>
+              <Link href="/monte-seu-kit" className="text-brand-text font-medium hover:text-brand-gold transition-colors">
+                Monte seu Kit
+              </Link>
+            </li>
           </ul>
         </div>
 

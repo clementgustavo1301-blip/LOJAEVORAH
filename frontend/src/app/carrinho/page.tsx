@@ -14,6 +14,9 @@ export default function CartPage() {
     removeFromCart,
     updateQuantity,
     subtotal,
+    kitDiscountPercent,
+    kitDiscount,
+    couponDiscount,
     discount,
     shippingFee,
     total,
@@ -91,6 +94,11 @@ export default function CartPage() {
                     </div>
 
                     <div>
+                      {item.kitId && (
+                        <span className="inline-block mb-1 px-2 py-0.5 bg-[#0A0A0A] text-brand-gold text-[9px] font-semibold uppercase tracking-[0.14em]">
+                          Kit EVORAH
+                        </span>
+                      )}
                       <h3 className="text-sm font-medium text-brand-text">
                         {item.product.name}
                       </h3>
@@ -225,7 +233,19 @@ export default function CartPage() {
                   R$ {subtotal.toFixed(2).replace('.', ',')}
                 </span>
               </div>
-              {discount > 0 && (
+              {kitDiscount > 0 && (
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>Desconto Kit ({kitDiscountPercent}%)</span>
+                  <span>- R$ {kitDiscount.toFixed(2).replace('.', ',')}</span>
+                </div>
+              )}
+              {couponDiscount > 0 && (
+                <div className="flex justify-between text-brand-text font-medium">
+                  <span>Cupom</span>
+                  <span>- R$ {couponDiscount.toFixed(2).replace('.', ',')}</span>
+                </div>
+              )}
+              {discount > 0 && kitDiscount === 0 && couponDiscount === 0 && (
                 <div className="flex justify-between text-brand-text font-medium">
                   <span>Desconto</span>
                   <span>- R$ {discount.toFixed(2).replace('.', ',')}</span>
