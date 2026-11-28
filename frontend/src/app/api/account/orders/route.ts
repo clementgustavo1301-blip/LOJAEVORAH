@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedCustomerContext } from '@/lib/customer-api-auth';
 import { isEmailVerifiedUser } from '@/lib/auth-roles';
+import {
+  fetchMercadoPagoTransaction,
+  isMercadoPagoConfigured,
+  updateServerOrderPaymentStatus,
+} from '@/lib/mercadopago-server';
 import type { Order, OrderItem, ShippingAddress } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -8,7 +13,7 @@ export const dynamic = 'force-dynamic';
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store, max-age=0' };
 
 const ORDER_SELECT =
-  'id, user_id, order_number, customer_name, customer_email, customer_phone, shipping_address, shipping_method, payment_method, payment_status, payment_id, fulfillment_status, tracking_code, tracking_carrier, subtotal, shipping_cost, discount, total, installments, created_at, items:order_items(id, order_id, product_id, product_name, finish, size, unit_price, quantity)';
+  'id, user_id, order_number, customer_name, customer_email, customer_phone, shipping_address, shipping_method, payment_method, payment_status, payment_id, pix_code, pix_qr_code_base64, pix_ticket_url, fulfillment_status, tracking_code, tracking_carrier, subtotal, shipping_cost, discount, total, installments, created_at, items:order_items(id, order_id, product_id, product_name, finish, size, unit_price, quantity)';
 
 function parseShippingAddress(raw: unknown): ShippingAddress {
   if (typeof raw === 'string') {
@@ -47,6 +52,11 @@ function mapCustomerOrder(row: Record<string, unknown>): Order {
     };
   });
 
+  const paymentMethod: 'PIX' | 'CREDIT_CARD' =
+    row.payment_method === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'PIX';
+  const paymentStatus = (row.payment_status as Order['paymentStatus']) || 'PENDING';
+  const includePixDetails = paymentMethod === 'PIX' && paymentStatus === 'PENDING';
+
   return {
     id: String(row.id),
     userId: row.user_id ? String(row.user_id) : null,
@@ -56,9 +66,14 @@ function mapCustomerOrder(row: Record<string, unknown>): Order {
     customerPhone: String(row.customer_phone || ''),
     shippingAddress: parseShippingAddress(row.shipping_address),
     shippingMethod: String(row.shipping_method || 'Expresso'),
-    paymentMethod: (row.payment_method === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'PIX'),
-    paymentStatus: (row.payment_status as Order['paymentStatus']) || 'PENDING',
+    paymentMethod,
+    paymentStatus,
     paymentId: row.payment_id ? String(row.payment_id) : undefined,
+    pixCode: includePixDetails && row.pix_code ? String(row.pix_code) : undefined,
+    pixQrCodeBase64:
+      includePixDetails && row.pix_qr_code_base64 ? String(row.pix_qr_code_base64) : undefined,
+    pixTicketUrl:
+      includePixDetails && row.pix_ticket_url ? String(row.pix_ticket_url) : undefined,
     fulfillmentStatus: (row.fulfillment_status as Order['fulfillmentStatus']) || 'PENDING_SUPPLIER',
     trackingCode: row.tracking_code ? String(row.tracking_code) : undefined,
     trackingCarrier: row.tracking_carrier ? String(row.tracking_carrier) : undefined,
@@ -81,7 +96,6 @@ export async function GET() {
   const emailVerified = isEmailVerifiedUser(user);
 
   // Vincula automaticamente compras antigas feitas como visitante quando o e-mail já foi verificado
-  // Usa adminDb apenas para essa atualização controlada; a leitura abaixo passa pelo RLS do usuário (`db`)
   if (email && emailVerified && adminDb) {
     try {
       await adminDb
@@ -109,7 +123,6 @@ export async function GET() {
     }
   }
 
-  // Fallback seguro por e-mail verificado (cobre pedidos ainda sem user_id ou bancos antes da migration)
   if (email && emailVerified) {
     const byEmailRes = await db
       .from('orders')
@@ -130,6 +143,62 @@ export async function GET() {
   const orders = Array.from(mergedMap.values()).sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
+
+  // Hidrata QR Code / Copia e Cola e reconcilia status de pedidos PIX pendentes direto no Mercado Pago
+  if (isMercadoPagoConfigured()) {
+    const pendingPixOrders = orders
+      .filter(
+        (o) =>
+          o.paymentMethod === 'PIX' &&
+          o.paymentStatus === 'PENDING' &&
+          Boolean(o.paymentId) &&
+          !o.paymentId?.startsWith('sim_')
+      )
+      .slice(0, 6);
+
+    if (pendingPixOrders.length > 0) {
+      await Promise.allSettled(
+        pendingPixOrders.map(async (order) => {
+          const mpTx = await fetchMercadoPagoTransaction(order.paymentId!);
+          if (!mpTx) return;
+
+          if (mpTx.paymentStatus !== 'PENDING') {
+            order.paymentStatus = mpTx.paymentStatus;
+            order.pixCode = undefined;
+            order.pixQrCodeBase64 = undefined;
+            order.pixTicketUrl = undefined;
+            await updateServerOrderPaymentStatus({
+              orderNumber: order.orderNumber,
+              paymentId: String(mpTx.id || order.paymentId),
+              paymentStatus: mpTx.paymentStatus,
+              paidAmount: mpTx.paidAmount > 0 ? mpTx.paidAmount : undefined,
+            }).catch(() => {});
+            return;
+          }
+
+          const hasNewPixData =
+            (!order.pixCode && Boolean(mpTx.pixCode)) ||
+            (!order.pixQrCodeBase64 && Boolean(mpTx.pixQrCodeBase64)) ||
+            (!order.pixTicketUrl && Boolean(mpTx.ticketUrl));
+
+          if (mpTx.pixCode) order.pixCode = mpTx.pixCode;
+          if (mpTx.pixQrCodeBase64) order.pixQrCodeBase64 = mpTx.pixQrCodeBase64;
+          if (mpTx.ticketUrl) order.pixTicketUrl = mpTx.ticketUrl;
+
+          if (hasNewPixData && adminDb) {
+            await adminDb
+              .from('orders')
+              .update({
+                pix_code: order.pixCode ?? null,
+                pix_qr_code_base64: order.pixQrCodeBase64 ?? null,
+                pix_ticket_url: order.pixTicketUrl ?? null,
+              })
+              .eq('id', order.id);
+          }
+        })
+      );
+    }
+  }
 
   return NextResponse.json(
     {

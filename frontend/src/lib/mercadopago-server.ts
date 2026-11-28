@@ -32,6 +32,9 @@ export interface ServerOrderRecord {
   paymentMethod: 'PIX' | 'CREDIT_CARD';
   paymentStatus: OrderPaymentStatus;
   paymentId?: string;
+  pixCode?: string;
+  pixQrCodeBase64?: string;
+  pixTicketUrl?: string;
   fulfillmentStatus: 'PENDING_SUPPLIER' | 'ORDERED_SUPPLIER' | 'SHIPPED' | 'DELIVERED';
   subtotal: number;
   shippingCost: number;
@@ -359,6 +362,9 @@ export async function persistServerOrder(
     const insertWithUserPayload = {
       ...baseInsert,
       user_id: record.userId ?? null,
+      pix_code: record.pixCode ?? null,
+      pix_qr_code_base64: record.pixQrCodeBase64 ?? null,
+      pix_ticket_url: record.pixTicketUrl ?? null,
     };
 
     let inserted: { id: string } | null = null;
@@ -371,7 +377,7 @@ export async function persistServerOrder(
     if (insertWithUser.data?.id) {
       inserted = insertWithUser.data;
     } else if (insertWithUser.error) {
-      // Fallback caso o banco ainda não tenha aplicado a coluna user_id
+      // Fallback caso o banco ainda não tenha aplicado as colunas extras
       const fallbackInsert = await supabase
         .from('orders')
         .insert(baseInsert)

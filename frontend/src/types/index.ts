@@ -171,6 +171,9 @@ export interface Order {
   paymentMethod: 'PIX' | 'CREDIT_CARD';
   paymentStatus: OrderPaymentStatus;
   paymentId?: string;
+  pixCode?: string;
+  pixQrCodeBase64?: string;
+  pixTicketUrl?: string;
   subtotal: number;
   shippingCost: number;
   discount: number;
