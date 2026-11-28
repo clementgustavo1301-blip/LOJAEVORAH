@@ -308,16 +308,21 @@ export async function persistServerOrder(
       installments: record.installments,
     };
 
+    const insertWithUserPayload = {
+      ...baseInsert,
+      user_id: record.userId ?? null,
+    };
+
     let inserted: { id: string } | null = null;
     const insertWithUser = await supabase
       .from('orders')
-      .insert(record.userId ? { ...baseInsert, user_id: record.userId } : baseInsert)
+      .insert(insertWithUserPayload)
       .select('id')
       .single();
 
     if (insertWithUser.data?.id) {
       inserted = insertWithUser.data;
-    } else if (record.userId && insertWithUser.error) {
+    } else if (insertWithUser.error) {
       // Fallback caso o banco ainda não tenha aplicado a coluna user_id
       const fallbackInsert = await supabase
         .from('orders')
