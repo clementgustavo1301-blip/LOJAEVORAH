@@ -16,15 +16,14 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') return;
-    import('@/lib/supabase/client').then(({ getSupabaseBrowserClient }) => {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) return;
-      supabase.auth.getSession().then(({ data }: { data: { session: unknown } }) => {
-        if (data.session) {
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me) => {
+        if (me?.authenticated && me?.isAdmin) {
           router.replace('/admin/produtos');
         }
-      });
-    });
+      })
+      .catch(() => {});
   }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -48,6 +47,16 @@ export default function AdminLoginPage() {
 
       if (signInError || !data.session) {
         setError('E-mail ou senha incorretos.');
+        setLoading(false);
+        return;
+      }
+
+      const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+      const me = meRes.ok ? await meRes.json() : null;
+      if (!me?.isAdmin) {
+        setError(
+          'Esta conta é de cliente e não possui acesso administrativo. Acesse sua área em /conta.'
+        );
         setLoading(false);
         return;
       }

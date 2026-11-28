@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/cart-context';
+import { useAuth } from '@/context/auth-context';
 import {
   createOrder,
   saveCompletedOrderLocally,
@@ -24,7 +25,7 @@ import {
   hasMercadoPagoPublicKey,
 } from '@/components/checkout/mercado-pago-card-brick';
 import { TrustSeals } from '@/components/ui/trust-seals';
-import { OrderCreatePayload, OrderPaymentStatus } from '@/types';
+import { CustomerAddress, OrderCreatePayload, OrderPaymentStatus } from '@/types';
 import {
   CreditCard,
   Lock,
@@ -33,6 +34,8 @@ import {
   AlertCircle,
   Loader2,
   MapPin,
+  User,
+  CheckCircle2,
 } from 'lucide-react';
 
 function formatCpfInput(raw: string): string {
@@ -69,8 +72,14 @@ function isValidCpf(raw: string): boolean {
 
 export default function CheckoutPage() {
   const { items, subtotal, discount, shippingFee, total, coupon, clearCart } = useCart();
+  const { profile, isAuthenticated, supabaseConfigured } = useAuth();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [saveAddressToAccount, setSaveAddressToAccount] = useState(true);
+  const hasPrefilledProfileRef = useRef(false);
+  const hasPrefilledAddressRef = useRef(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -154,6 +163,96 @@ export default function CheckoutPage() {
   };
 
   useEffect(() => () => cepAbortRef.current?.abort(), []);
+
+  // Autopreenchimento de dados pessoais e endereços salvos para clientes logados
+  useEffect(() => {
+    if (!isAuthenticated || !profile) {
+      hasPrefilledProfileRef.current = false;
+      hasPrefilledAddressRef.current = false;
+      setSavedAddresses([]);
+      setSelectedAddressId(null);
+      return;
+    }
+
+    if (!hasPrefilledProfileRef.current) {
+      hasPrefilledProfileRef.current = true;
+      setFormData((prev) => ({
+        ...prev,
+        name: prev.name || profile.fullName || '',
+        email: prev.email || profile.email || '',
+        phone: prev.phone || (profile.phone ? formatPhoneInput(profile.phone) : ''),
+        cpf: prev.cpf || (profile.cpf ? formatCpfInput(profile.cpf) : ''),
+      }));
+    }
+
+    let active = true;
+    fetch('/api/account/addresses', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !Array.isArray(data?.addresses)) return;
+        const list = data.addresses as CustomerAddress[];
+        setSavedAddresses(list);
+        if (list.length > 0 && !hasPrefilledAddressRef.current) {
+          hasPrefilledAddressRef.current = true;
+          const primary = list.find((a) => a.isDefault) || list[0];
+          setSelectedAddressId(primary.id);
+          setSaveAddressToAccount(false);
+          setFormData((prev) =>
+            prev.cep
+              ? prev
+              : {
+                  ...prev,
+                  cep: primary.cep,
+                  street: primary.street,
+                  number: primary.number,
+                  complement: primary.complement || '',
+                  neighborhood: primary.neighborhood,
+                  city: primary.city,
+                  state: primary.state,
+                }
+          );
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, profile]);
+
+  const applySavedAddress = (addr: CustomerAddress) => {
+    setSelectedAddressId(addr.id);
+    setSaveAddressToAccount(false);
+    setCepError(null);
+    setCepSuccessCity(`${addr.city}/${addr.state}`);
+    setFormData((prev) => ({
+      ...prev,
+      cep: addr.cep,
+      street: addr.street,
+      number: addr.number,
+      complement: addr.complement || '',
+      neighborhood: addr.neighborhood,
+      city: addr.city,
+      state: addr.state,
+    }));
+  };
+
+  const clearSelectedSavedAddress = () => {
+    setSelectedAddressId(null);
+    setSaveAddressToAccount(true);
+    setCepError(null);
+    setCepSuccessCity(null);
+    setFormData((prev) => ({
+      ...prev,
+      cep: '',
+      street: '',
+      number: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+    }));
+  };
 
   const pixDiscount = formData.paymentMethod === 'PIX' ? (subtotal - discount) * 0.05 : 0;
   const finalTotal = Math.max(0, total - pixDiscount);
@@ -282,12 +381,68 @@ export default function CheckoutPage() {
     applyConfirmedPayment,
   ]);
 
+  const persistCustomerCheckoutDetails = useCallback(() => {
+    if (!isAuthenticated) return;
+
+    // Atualiza telefone e CPF no perfil se ainda estiverem vazios
+    if (profile && (!profile.phone || !profile.cpf)) {
+      fetch('/api/account/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: formData.name || profile.fullName,
+          phone: formData.phone || profile.phone,
+          cpf: formData.cpf || profile.cpf,
+        }),
+      }).catch(() => {});
+    }
+
+    // Salva novo endereço na conta se marcado pelo cliente
+    if (saveAddressToAccount && !selectedAddressId && formData.cep && formData.street) {
+      fetch('/api/account/addresses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: savedAddresses.length === 0 ? 'Principal' : 'Outro endereço',
+          recipientName: formData.name,
+          cep: formData.cep,
+          street: formData.street,
+          number: formData.number,
+          complement: formData.complement,
+          neighborhood: formData.neighborhood,
+          city: formData.city,
+          state: formData.state,
+          isDefault: savedAddresses.length === 0,
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.address) {
+            setSavedAddresses((prev) => [data.address, ...prev]);
+            setSelectedAddressId(data.address.id);
+            setSaveAddressToAccount(false);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [
+    isAuthenticated,
+    profile,
+    formData,
+    saveAddressToAccount,
+    selectedAddressId,
+    savedAddresses.length,
+  ]);
+
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
     setCheckoutError(null);
     if (step === 1 && !isValidCpf(formData.cpf)) {
       setCheckoutError('Informe um CPF válido.');
       return;
+    }
+    if (step === 2) {
+      persistCustomerCheckoutDetails();
     }
     if (step < 3) {
       setStep((s) => (s + 1) as 1 | 2 | 3 | 4);
@@ -552,6 +707,40 @@ export default function CheckoutPage() {
                     <h3 className="text-xs font-semibold tracking-wider uppercase text-brand-text pb-2.5 border-b border-brand-border">
                       Dados Pessoais
                     </h3>
+
+                    {isAuthenticated && profile ? (
+                      <div className="p-3.5 bg-brand-background border border-brand-border flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2 text-brand-text min-w-0">
+                          <CheckCircle2 className="w-4 h-4 text-brand-gold shrink-0" />
+                          <span className="truncate">
+                            Conectado como <strong>{profile.email}</strong> • pedido salvo na sua conta
+                          </span>
+                        </div>
+                        <Link
+                          href="/conta"
+                          className="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-text hover:text-brand-gold shrink-0"
+                        >
+                          Minha Conta
+                        </Link>
+                      </div>
+                    ) : (
+                      supabaseConfigured && (
+                        <div className="p-3.5 bg-brand-background border border-brand-border flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 text-brand-textMuted">
+                            <User className="w-4 h-4 text-brand-gold shrink-0" />
+                            <span>
+                              Já tem conta EVORAH? Entre para preencher seus dados automaticamente.
+                            </span>
+                          </div>
+                          <Link
+                            href="/entrar?next=/checkout"
+                            className="h-8 px-3.5 bg-[#0A0A0A] hover:bg-brand-gold hover:text-[#0A0A0A] text-white text-[10px] font-semibold uppercase tracking-[0.14em] inline-flex items-center transition-colors"
+                          >
+                            Entrar
+                          </Link>
+                        </div>
+                      )
+                    )}
                     <div className="space-y-3.5">
                       <div>
                         <label htmlFor="checkout-name" className="text-xs font-medium text-brand-text block mb-1">
@@ -646,6 +835,54 @@ export default function CheckoutPage() {
                       ) : null}
                     </div>
                     <div className="space-y-3.5">
+                      {isAuthenticated && savedAddresses.length > 0 && (
+                        <div className="space-y-2 pb-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-textMuted">
+                              Seus endereços salvos
+                            </span>
+                            <button
+                              type="button"
+                              onClick={clearSelectedSavedAddress}
+                              className="text-[11px] font-medium text-brand-text underline underline-offset-4 hover:text-brand-gold transition-colors"
+                            >
+                              Usar outro endereço
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {savedAddresses.map((addr) => {
+                              const selected = selectedAddressId === addr.id;
+                              return (
+                                <button
+                                  key={addr.id}
+                                  type="button"
+                                  onClick={() => applySavedAddress(addr)}
+                                  className={`p-3 border text-left transition-colors ${
+                                    selected
+                                      ? 'border-[#0A0A0A] bg-brand-background'
+                                      : 'border-brand-border bg-white hover:border-brand-text'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-text">
+                                      {addr.label}
+                                    </span>
+                                    {selected && (
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-brand-gold shrink-0" />
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-brand-text truncate">
+                                    {addr.street}, {addr.number}
+                                  </p>
+                                  <p className="text-[11px] text-brand-textMuted truncate">
+                                    {addr.city}/{addr.state} • {addr.cep}
+                                  </p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-1">
                           <label htmlFor="checkout-cep" className="text-xs font-medium text-brand-text block mb-1">
@@ -770,6 +1007,18 @@ export default function CheckoutPage() {
                           />
                         </div>
                       </div>
+
+                      {isAuthenticated && !selectedAddressId && (
+                        <label className="flex items-center gap-2.5 text-xs text-brand-text cursor-pointer pt-1">
+                          <input
+                            type="checkbox"
+                            checked={saveAddressToAccount}
+                            onChange={(e) => setSaveAddressToAccount(e.target.checked)}
+                            className="w-4 h-4 accent-[#0A0A0A]"
+                          />
+                          <span>Salvar este endereço na minha conta para próximas compras</span>
+                        </label>
+                      )}
                     </div>
                   </div>
                 )}

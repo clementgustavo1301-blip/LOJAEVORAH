@@ -104,11 +104,20 @@ const nextConfig: NextConfig = {
       },
       ...prodImmutableAssetHeaders,
       {
-        source: '/(admin|checkout|carrinho|rastreio|favoritos|design-system)(.*)',
+        source: '/(admin|checkout|carrinho|rastreio|favoritos|design-system|conta|entrar|cadastro|recuperar-senha|redefinir-senha)(.*)',
         headers: [
           {
             key: 'X-Robots-Tag',
             value: 'noindex, nofollow',
+          },
+        ],
+      },
+      {
+        source: '/(conta|admin)(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0',
           },
         ],
       },

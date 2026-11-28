@@ -10,16 +10,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const isLoginPage = pathname === '/admin/login';
 
-  const [checkingAuth, setCheckingAuth] = useState(!isLoginPage && process.env.NODE_ENV !== 'development');
-  const [userEmail, setUserEmail] = useState<string | null>(
-    process.env.NODE_ENV === 'development' ? 'admin@inox316l.com.br' : null
-  );
+  const [checkingAuth, setCheckingAuth] = useState(!isLoginPage);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isLoginPage || process.env.NODE_ENV === 'development') {
+    if (isLoginPage) {
       setCheckingAuth(false);
       return;
     }
@@ -27,11 +25,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     let mounted = true;
     let unsubscribe: (() => void) | undefined;
 
-    import('@/lib/supabase/client').then(({ getSupabaseBrowserClient }) => {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase || !mounted) {
+    import('@/lib/supabase/client').then(({ getSupabaseBrowserClient, isSupabaseConfigured }) => {
+      if (!isSupabaseConfigured()) {
         if (mounted) {
-          if (process.env.NODE_ENV !== 'production') {
+          if (process.env.NODE_ENV === 'development') {
+            setUserEmail('admin@inox316l.com.br');
             setCheckingAuth(false);
           } else {
             router.replace('/admin/login');
@@ -40,14 +38,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return;
       }
 
-      supabase.auth
-        .getUser()
-        .then((res: { data: { user: { email?: string } | null } }) => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase || !mounted) {
+        if (mounted) router.replace('/admin/login');
+        return;
+      }
+
+      fetch('/api/auth/me', { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((me) => {
           if (!mounted) return;
-          if (!res.data?.user) {
+          if (!me?.authenticated) {
             router.replace('/admin/login');
+          } else if (!me.isAdmin) {
+            router.replace('/conta');
           } else {
-            setUserEmail(res.data.user.email || 'Admin');
+            setUserEmail(me.user?.email || 'Admin');
             setCheckingAuth(false);
           }
         })
@@ -65,9 +71,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         (_event: string, session: { user?: { email?: string } } | null) => {
           if (!session?.user && !isLoginPage) {
             router.replace('/admin/login');
-          } else if (session?.user) {
-            setUserEmail(session.user.email || 'Admin');
-            setCheckingAuth(false);
           }
         }
       );

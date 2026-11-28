@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
   calculateServerOrderTotals,
   createMercadoPagoTransaction,
@@ -7,6 +8,17 @@ import {
   persistServerOrder,
   resolveWebhookNotificationUrl,
 } from '@/lib/mercadopago-server';
+
+async function resolveAuthenticatedUserId(): Promise<string | null> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getUser();
+    return data?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Endpoint de Checkout Transparente com Cartão (Mercado Pago Brick tokenizado).
@@ -46,6 +58,7 @@ export async function POST(req: Request) {
 
     const accessToken = getMercadoPagoAccessToken();
     const nowIso = new Date().toISOString();
+    const authenticatedUserId = await resolveAuthenticatedUserId();
 
     if (accessToken) {
       if (!body.token || !body.payment_method_id) {
@@ -106,6 +119,7 @@ export async function POST(req: Request) {
       await persistServerOrder(
         {
           orderNumber,
+          userId: authenticatedUserId,
           customerName,
           customerEmail,
           customerPhone,
@@ -157,6 +171,7 @@ export async function POST(req: Request) {
     await persistServerOrder(
       {
         orderNumber,
+        userId: authenticatedUserId,
         customerName,
         customerEmail,
         customerPhone,

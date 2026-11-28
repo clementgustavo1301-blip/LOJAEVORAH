@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { isAdminUser } from '@/lib/auth-roles';
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -7,18 +8,31 @@ export async function middleware(request: NextRequest) {
   });
 
   const pathname = request.nextUrl.pathname;
-  const isLoginPage = pathname === '/admin/login';
-  const isProtectedAdminRoute = pathname.startsWith('/admin') && !isLoginPage;
-
-  // Em desenvolvimento, libera acesso imediato sem bloquear em roundtrips externos do Supabase
-  if (process.env.NODE_ENV === 'development') {
-    return supabaseResponse;
-  }
+  const isAdminLoginPage = pathname === '/admin/login';
+  const isAdminArea = pathname.startsWith('/admin');
+  const isProtectedAdminRoute = isAdminArea && !isAdminLoginPage;
+  const isCustomerAccountRoute = pathname.startsWith('/conta');
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const remoteDisabled = process.env.NEXT_PUBLIC_ENABLE_REMOTE_SUPABASE === 'false';
+  const supabaseConfigured = Boolean(
+    !remoteDisabled &&
+      supabaseUrl &&
+      supabaseAnonKey &&
+      !supabaseUrl.includes('your-project-id')
+  );
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  // Bypass local SOMENTE quando explicitamente optado via ALLOW_LOCAL_ADMIN_BYPASS=true em dev
+  const allowLocalBypass =
+    process.env.NODE_ENV === 'development' &&
+    process.env.ALLOW_LOCAL_ADMIN_BYPASS === 'true';
+
+  if (allowLocalBypass && isAdminArea) {
+    return supabaseResponse;
+  }
+
+  if (!supabaseConfigured) {
     return supabaseResponse;
   }
 
@@ -32,10 +46,16 @@ export async function middleware(request: NextRequest) {
       loginUrl.pathname = '/admin/login';
       return NextResponse.redirect(loginUrl);
     }
+    if (isCustomerAccountRoute) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = '/entrar';
+      loginUrl.searchParams.set('next', pathname + request.nextUrl.search);
+      return NextResponse.redirect(loginUrl);
+    }
     return supabaseResponse;
   }
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+  const supabase = createServerClient(supabaseUrl!, supabaseAnonKey!, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -64,13 +84,48 @@ export async function middleware(request: NextRequest) {
     user = null;
   }
 
-  if (isProtectedAdminRoute && !user) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = '/admin/login';
-    return NextResponse.redirect(loginUrl);
+  if (isCustomerAccountRoute) {
+    if (!user) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = '/entrar';
+      loginUrl.searchParams.set('next', pathname + request.nextUrl.search);
+      return NextResponse.redirect(loginUrl);
+    }
+    return supabaseResponse;
   }
 
-  if (isLoginPage && user) {
+  // Verificação estrita de papel admin para rotas /admin
+  let userIsAdmin = false;
+  if (user && isAdminArea) {
+    userIsAdmin = isAdminUser(user);
+    if (!userIsAdmin) {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+        userIsAdmin = isAdminUser(user, (profile as { role?: string } | null)?.role);
+      } catch {
+        userIsAdmin = false;
+      }
+    }
+  }
+
+  if (isProtectedAdminRoute) {
+    if (!user) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = '/admin/login';
+      return NextResponse.redirect(loginUrl);
+    }
+    if (!userIsAdmin) {
+      const accountUrl = request.nextUrl.clone();
+      accountUrl.pathname = '/conta';
+      return NextResponse.redirect(accountUrl);
+    }
+  }
+
+  if (isAdminLoginPage && user && userIsAdmin) {
     const adminUrl = request.nextUrl.clone();
     adminUrl.pathname = '/admin/produtos';
     return NextResponse.redirect(adminUrl);
@@ -80,6 +135,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/conta/:path*'],
 };
-

@@ -90,6 +90,14 @@ export function Footer() {
             </li>
             <li>
               <Link
+                href="/conta?aba=pedidos"
+                className="text-brand-text font-medium hover:text-brand-gold transition-colors inline-flex items-center gap-1.5"
+              >
+                Minha Conta & Pedidos
+              </Link>
+            </li>
+            <li>
+              <Link
                 href="/rastreio"
                 className="text-brand-text font-medium hover:text-brand-gold transition-colors inline-flex items-center gap-1.5"
               >

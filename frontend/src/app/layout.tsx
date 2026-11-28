@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
+import { AuthProvider } from '@/context/auth-context';
 import { CartProvider } from '@/context/cart-context';
 import { TopBar } from '@/components/layout/top-bar';
 import { Header } from '@/components/layout/header';
@@ -129,14 +130,16 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: STORE_STRUCTURED_DATA }}
         />
-        <CartProvider>
-          <NavigationProgress />
-          <TopBar />
-          <Header />
-          <MiniCartHost />
-          <main className="flex-1 flex flex-col">{children}</main>
-          <Footer />
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <NavigationProgress />
+            <TopBar />
+            <Header />
+            <MiniCartHost />
+            <main className="flex-1 flex flex-col">{children}</main>
+            <Footer />
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );

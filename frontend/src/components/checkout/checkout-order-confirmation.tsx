@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { MotionConfig, motion } from 'motion/react';
+import { useAuth } from '@/context/auth-context';
 import {
   AlertCircle,
   ArrowRight,
@@ -11,8 +12,10 @@ import {
   Copy,
   ExternalLink,
   MapPin,
+  Package,
   RefreshCw,
   ShieldCheck,
+  UserPlus,
 } from 'lucide-react';
 import { OrderPaymentStatus } from '@/types';
 
@@ -70,6 +73,7 @@ export function CheckoutOrderConfirmation({
   simulatingWebhook,
   onSimulateWebhook,
 }: CheckoutOrderConfirmationProps) {
+  const { isAuthenticated } = useAuth();
   const isPaid = orderConfirmed.paymentStatus === 'PAID';
   const isCancelled = orderConfirmed.paymentStatus === 'CANCELLED';
   const isPendingPix =
@@ -501,15 +505,36 @@ export function CheckoutOrderConfirmation({
           </div>
 
           <div className="pt-2 space-y-2.5">
-            {isPaid && (
+            {isAuthenticated ? (
               <Link
-                href={`/rastreio?pedido=${orderConfirmed.orderNumber}`}
+                href="/conta?aba=pedidos"
                 className="h-11 w-full bg-brand-gold text-[#0A0A0A] hover:bg-[#DFC383] font-semibold text-[11px] tracking-[0.16em] uppercase flex items-center justify-center gap-2 transition-colors"
               >
-                <span>Acompanhar pedido</span>
-                <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.75} />
+                <Package className="w-3.5 h-3.5" strokeWidth={1.75} />
+                <span>Ver em Meus Pedidos</span>
+              </Link>
+            ) : (
+              isPaid && (
+                <Link
+                  href={`/rastreio?pedido=${orderConfirmed.orderNumber}`}
+                  className="h-11 w-full bg-brand-gold text-[#0A0A0A] hover:bg-[#DFC383] font-semibold text-[11px] tracking-[0.16em] uppercase flex items-center justify-center gap-2 transition-colors"
+                >
+                  <span>Acompanhar pedido</span>
+                  <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.75} />
+                </Link>
+              )
+            )}
+
+            {!isAuthenticated && orderConfirmed.customerEmail && (
+              <Link
+                href={`/cadastro?email=${encodeURIComponent(orderConfirmed.customerEmail)}&next=/conta`}
+                className="h-11 w-full border border-brand-gold/60 text-brand-gold hover:bg-brand-gold hover:text-[#0A0A0A] font-semibold text-[11px] tracking-[0.14em] uppercase flex items-center justify-center gap-2 transition-colors"
+              >
+                <UserPlus className="w-3.5 h-3.5" strokeWidth={1.75} />
+                <span>Criar conta e salvar pedido</span>
               </Link>
             )}
+
             <Link
               href="/produtos"
               className="h-11 w-full border border-white/25 text-[#FAF9F6] hover:border-brand-gold hover:text-brand-gold font-semibold text-[11px] tracking-[0.16em] uppercase flex items-center justify-center transition-colors"

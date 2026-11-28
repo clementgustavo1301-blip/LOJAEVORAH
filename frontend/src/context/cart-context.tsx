@@ -1,9 +1,10 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Product, CartItem, FinishType } from '@/types';
 import { fetchProducts } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
+import { useAuth } from '@/context/auth-context';
 
 interface CartContextType {
   items: CartItem[];
@@ -38,11 +39,18 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [coupon, setCoupon] = useState<string>('');
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [isMiniCartOpen, setIsMiniCartOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const syncedWishlistUserRef = useRef<string | null>(null);
+  const wishlistRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    wishlistRef.current = wishlist;
+  }, [wishlist]);
 
   useEffect(() => {
     let active = true;
@@ -101,6 +109,36 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('brand_name_wishlist', JSON.stringify(wishlist));
     } catch {}
   }, [wishlist, mounted]);
+
+  // Mescla e sincroniza favoritos locais com a nuvem ao fazer login
+  useEffect(() => {
+    if (!mounted) return;
+    if (!isAuthenticated || !user?.id) {
+      syncedWishlistUserRef.current = null;
+      return;
+    }
+    if (syncedWishlistUserRef.current === user.id) return;
+    syncedWishlistUserRef.current = user.id;
+
+    let active = true;
+    fetch('/api/account/wishlist', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productIds: wishlistRef.current }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !Array.isArray(data?.productIds)) return;
+        setWishlist(data.productIds);
+      })
+      .catch(() => {
+        // Mantém favoritos locais em caso de indisponibilidade temporária
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [mounted, isAuthenticated, user?.id]);
 
   const addToCart = useCallback(
     (
@@ -187,11 +225,31 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
-  const toggleWishlist = useCallback((productId: string) => {
-    setWishlist((prev) =>
-      prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
-    );
-  }, []);
+  const toggleWishlist = useCallback(
+    (productId: string) => {
+      setWishlist((prev) =>
+        prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
+      );
+
+      if (isAuthenticated && user?.id) {
+        fetch('/api/account/wishlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId }),
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (Array.isArray(data?.productIds)) {
+              setWishlist(data.productIds);
+            }
+          })
+          .catch(() => {
+            // Mantém atualização otimista local
+          });
+      }
+    },
+    [isAuthenticated, user?.id]
+  );
 
   const isWishlisted = useCallback(
     (productId: string) => wishlist.includes(productId),

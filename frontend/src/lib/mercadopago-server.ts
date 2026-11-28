@@ -16,6 +16,7 @@ export interface ServerOrderItemInput {
 
 export interface ServerOrderRecord {
   orderNumber: string;
+  userId?: string | null;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -289,27 +290,42 @@ export async function persistServerOrder(
       return;
     }
 
-    const { data: inserted } = await supabase
+    const baseInsert = {
+      order_number: record.orderNumber,
+      customer_name: record.customerName,
+      customer_email: record.customerEmail,
+      customer_phone: record.customerPhone,
+      shipping_address: record.shippingAddress,
+      shipping_method: record.shippingMethod,
+      payment_method: record.paymentMethod,
+      payment_status: record.paymentStatus,
+      payment_id: record.paymentId || null,
+      fulfillment_status: record.fulfillmentStatus,
+      subtotal: record.subtotal,
+      shipping_cost: record.shippingCost,
+      discount: record.discount,
+      total: record.total,
+      installments: record.installments,
+    };
+
+    let inserted: { id: string } | null = null;
+    const insertWithUser = await supabase
       .from('orders')
-      .insert({
-        order_number: record.orderNumber,
-        customer_name: record.customerName,
-        customer_email: record.customerEmail,
-        customer_phone: record.customerPhone,
-        shipping_address: record.shippingAddress,
-        shipping_method: record.shippingMethod,
-        payment_method: record.paymentMethod,
-        payment_status: record.paymentStatus,
-        payment_id: record.paymentId || null,
-        fulfillment_status: record.fulfillmentStatus,
-        subtotal: record.subtotal,
-        shipping_cost: record.shippingCost,
-        discount: record.discount,
-        total: record.total,
-        installments: record.installments,
-      })
+      .insert(record.userId ? { ...baseInsert, user_id: record.userId } : baseInsert)
       .select('id')
       .single();
+
+    if (insertWithUser.data?.id) {
+      inserted = insertWithUser.data;
+    } else if (record.userId && insertWithUser.error) {
+      // Fallback caso o banco ainda não tenha aplicado a coluna user_id
+      const fallbackInsert = await supabase
+        .from('orders')
+        .insert(baseInsert)
+        .select('id')
+        .single();
+      inserted = fallbackInsert.data;
+    }
 
     if (inserted?.id && resolvedItems.length > 0) {
       await supabase.from('order_items').insert(

@@ -105,8 +105,44 @@ export type FulfillmentStatus =
 
 export type OrderPaymentStatus = 'PENDING' | 'PAID' | 'CANCELLED';
 
+export type UserRole = 'customer' | 'admin';
+
+export interface CustomerProfile {
+  id: string;
+  email: string;
+  fullName: string;
+  phone: string;
+  cpf: string;
+  role: UserRole;
+  emailVerified: boolean;
+  provider?: string;
+  createdAt?: string;
+}
+
+export interface CustomerAddress extends ShippingAddress {
+  id: string;
+  label: string;
+  recipientName: string;
+  isDefault: boolean;
+  createdAt?: string;
+}
+
+export interface AuthMeResponse {
+  authenticated: boolean;
+  supabaseConfigured: boolean;
+  isAdmin: boolean;
+  user: {
+    id: string;
+    email: string;
+    emailVerified: boolean;
+    provider?: string;
+  } | null;
+  profile: CustomerProfile | null;
+}
+
 export interface Order {
   id: string;
+  userId?: string | null;
   orderNumber: string;
   customerName: string;
   customerEmail: string;
